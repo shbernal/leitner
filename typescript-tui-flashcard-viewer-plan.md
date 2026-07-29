@@ -144,15 +144,15 @@ Why Ink:
 Potential package name:
 
 ```text
-flashcard-tui
+flashcards-tui
 ```
 
 Initial commands:
 
 ```bash
-flashcard-tui review ~/notes/flashcards
-flashcard-tui list ~/notes/flashcards
-flashcard-tui stats ~/notes/flashcards
+flashcards-tui review ~/notes/flashcards
+flashcards-tui list ~/notes/flashcards
+flashcards-tui stats ~/notes/flashcards
 ```
 
 Useful flags:
@@ -163,7 +163,7 @@ Useful flags:
 --due
 --new
 --limit 50
---state ~/.local/share/flashcard-tui/review-state.json
+--state ~/.local/share/flashcards-tui/review-state.json
 ```
 
 Default source path:
@@ -244,13 +244,13 @@ parity.
 Store review state outside the notes folder:
 
 ```text
-~/.local/share/flashcard-tui/review-state.json
+~/.local/share/flashcards-tui/review-state.json
 ```
 
 Store app config at:
 
 ```text
-~/.config/flashcard-tui/config.json
+~/.config/flashcards-tui/config.json
 ```
 
 Config can include:
@@ -269,10 +269,10 @@ Do not write metadata back into the markdown files in v1.
 
 Two reasonable options:
 
-1. Standalone project under `~/Work/flashcard-tui`.
-2. New package under `~/Work/anki-md-pkgs/flashcard-tui`.
+1. Standalone project under `~/Work/flashcards-tui`.
+2. New package under `~/Work/anki-md-pkgs/flashcards-tui`.
 
-Recommendation: start standalone at `~/Work/flashcard-tui`.
+Recommendation: start standalone at `~/Work/flashcards-tui`.
 
 Reason: the viewer consumes personal notes and has different runtime concerns
 from the package/export tools. If the parser becomes generally useful, extract
@@ -305,8 +305,8 @@ Acceptance:
 
 Acceptance:
 
-- `flashcard-tui list ~/notes/flashcards` prints decks and card counts.
-- `flashcard-tui stats ~/notes/flashcards` reports total cards, due cards,
+- `flashcards-tui list ~/notes/flashcards` prints decks and card counts.
+- `flashcards-tui stats ~/notes/flashcards` reports total cards, due cards,
   suspended cards, and parse warnings.
 
 ### Milestone 3: Review State
@@ -331,7 +331,7 @@ Acceptance:
 
 Acceptance:
 
-- `flashcard-tui review ~/notes/flashcards` opens a working terminal review
+- `flashcards-tui review ~/notes/flashcards` opens a working terminal review
   loop.
 - Grading cards updates state.
 - Quit is clean and does not corrupt state.

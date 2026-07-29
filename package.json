@@ -1,5 +1,5 @@
 {
-  "name": "flashcard-tui",
+  "name": "flashcards-tui",
   "version": "0.1.0",
   "description": "Terminal UI for reviewing markdown flashcards",
   "type": "module",
@@ -8,13 +8,14 @@
     "node": ">=20"
   },
   "bin": {
-    "flashcard-tui": "dist/index.js"
+    "flashcards-tui": "dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc",
+    "flashcards-tui-local": "env FLASHCARDS_TUI_CALLER_CWD=\"$INIT_CWD\" ./bin/flashcards-tui",
     "test": "vitest run",
     "lint": "eslint src tests",
     "typecheck": "tsc --noEmit"

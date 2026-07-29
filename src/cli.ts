@@ -5,7 +5,7 @@ import { buildQueue } from './queue.js'
 import { defaultStatePath, loadState } from './state.js'
 import type { CardType, Flashcard, ParseResult } from './types.js'
 
-const USAGE = `Usage: flashcard-tui <command> [source-dir] [options]
+const USAGE = `Usage: flashcards-tui <command> [source-dir] [options]
 
 Commands:
   review [dir]   Interactive terminal review session
@@ -18,7 +18,7 @@ Options:
   --due                   Only due cards
   --new                   Only new (never reviewed) cards
   --limit <n>             Cap the review queue size
-  --state <path>          Review state file (default: ~/.local/share/flashcard-tui/review-state.json)
+  --state <path>          Review state file (default: ~/.local/share/flashcards-tui/review-state.json)
   -h, --help              Show this help
 `
 

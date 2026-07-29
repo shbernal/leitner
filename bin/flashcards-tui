@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Repo-owned development launcher. Rebuilds only when sources changed, keeps the
+# caller's cwd, and never writes build chatter to stdout.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+entry="$repo/dist/index.js"
+
+needs_build=0
+if [[ ! -f "$entry" ]]; then
+  needs_build=1
+elif [[ -n "$(find "$repo/src" "$repo/tsconfig.json" -newer "$entry" -print -quit)" ]]; then
+  needs_build=1
+fi
+
+if [[ "$needs_build" == 1 ]]; then
+  (cd "$repo" && pnpm build) >&2
+fi
+
+exec node "$entry" "$@"

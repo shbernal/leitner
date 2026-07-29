@@ -1,4 +1,4 @@
-# flashcard-tui
+# flashcards-tui
 
 Terminal UI for reviewing markdown flashcards from `~/notes/flashcards`.
 
@@ -18,7 +18,7 @@ node dist/index.js stats  [dir]   # totals, due/new/suspended, parse warnings
 node dist/index.js review [dir]   # interactive review session
 ```
 
-`dir` defaults to `sourceDir` from `~/.config/flashcard-tui/config.json`,
+`dir` defaults to `sourceDir` from `~/.config/flashcards-tui/config.json`,
 falling back to `~/notes/flashcards`.
 
 ### Flags
@@ -29,7 +29,7 @@ falling back to `~/notes/flashcards`.
 --due                   only due cards
 --new                   only new cards
 --limit <n>             cap queue size (review defaults to dailyLimit, 50)
---state <path>          state file (default ~/.local/share/flashcard-tui/review-state.json)
+--state <path>          state file (default ~/.local/share/flashcards-tui/review-state.json)
 ```
 
 ### Review keys

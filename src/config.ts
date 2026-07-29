@@ -16,7 +16,7 @@ export function expandHome(p: string): string {
 
 export function defaultConfigPath(): string {
   const configHome = process.env['XDG_CONFIG_HOME'] ?? path.join(os.homedir(), '.config')
-  return path.join(configHome, 'flashcard-tui', 'config.json')
+  return path.join(configHome, 'flashcards-tui', 'config.json')
 }
 
 const DEFAULT_CONFIG: AppConfig = {
