@@ -51,3 +51,33 @@ export function buildQueue(
   }
   return queue
 }
+
+export type DeckSummary = {
+  total: number
+  due: number
+  fresh: number
+  suspended: number
+}
+
+/** Per-deck counts for the deck picker and `stats`. */
+export function summarizeDecks(
+  cards: Flashcard[],
+  state: ReviewState,
+  now: Date = new Date(),
+): Map<string, DeckSummary> {
+  const summaries = new Map<string, DeckSummary>()
+  for (const card of cards) {
+    let summary = summaries.get(card.deckId)
+    if (!summary) {
+      summary = { total: 0, due: 0, fresh: 0, suspended: 0 }
+      summaries.set(card.deckId, summary)
+    }
+    summary.total += 1
+
+    const record = state.records[card.id]
+    if (!record) summary.fresh += 1
+    else if (record.suspended) summary.suspended += 1
+    else if (isDue(record, now)) summary.due += 1
+  }
+  return summaries
+}

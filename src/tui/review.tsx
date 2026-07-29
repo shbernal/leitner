@@ -1,18 +1,28 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout } from 'ink'
+import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
+import { buildQueue, summarizeDecks, type QueueItem, type QueueOptions } from '../queue.js'
+import { renderMarkdown, type RenderedLine } from '../render.js'
 import { applyGrade, newRecord } from '../scheduler.js'
 import { saveState, type ReviewState } from '../state.js'
-import type { QueueItem } from '../queue.js'
-import type { Grade, ReviewRecord } from '../types.js'
+import type { Deck, Flashcard, Grade, ReviewRecord } from '../types.js'
+import { MarkdownLine } from './components.js'
+import { ALL_DECKS, DeckPicker } from './DeckPicker.js'
 
-type ReviewSessionOptions = {
-  queue: QueueItem[]
+export type ReviewSessionOptions = {
+  cards: Flashcard[]
+  decks: Deck[]
   state: ReviewState
   statePath: string
+  queueOptions: QueueOptions
+  /** When set, the deck picker is skipped. */
+  deckFilter?: string | undefined
+  images: ImageSupport
+  /** Absolute paths verified as displayable PNGs. */
+  displayablePngs: Set<string>
 }
 
 type UndoEntry = {
-  index: number
   cardId: string
   previousRecord: ReviewRecord | undefined
   action: string
@@ -25,20 +35,46 @@ const GRADE_KEYS: Record<string, Grade> = {
   '4': 'easy',
 }
 
-function bodyLines(item: QueueItem): string[] {
-  const lines = item.card.bodyMarkdown === '' ? ['(no body)'] : item.card.bodyMarkdown.split('\n')
-  if (item.card.images.length > 0) {
-    lines.push('')
-    for (const image of item.card.images) {
-      lines.push(`📎 ${image.alt || 'image'} → ${image.path}`)
-    }
+/** Chrome around the card box: header, borders, hints, message. */
+const CHROME_ROWS = 7
+
+function attachmentLines(item: QueueItem, displayablePngs: Set<string>): RenderedLine[] {
+  if (item.card.images.length === 0) return []
+  const lines: RenderedLine[] = [{ spans: [] }]
+  for (const image of item.card.images) {
+    const previewable = displayablePngs.has(image.path)
+    lines.push({
+      spans: [
+        { text: '📎 ', color: previewable ? 'green' : 'yellow' },
+        { text: image.alt || 'image', italic: true },
+        { text: ' → ' + image.path, dim: true },
+      ],
+    })
   }
   return lines
 }
 
-function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
+/** With --deck the picker is skipped, so that deck's queue exists from mount. */
+function initialQueue(options: ReviewSessionOptions): QueueItem[] {
+  const { deckFilter, cards, state, queueOptions } = options
+  if (deckFilter === undefined) return []
+  const scoped = cards.filter((card) => card.deckId === deckFilter || card.sourcePath.includes(deckFilter))
+  return buildQueue(scoped, state, queueOptions)
+}
+
+function matches(item: QueueItem, needle: string): boolean {
+  const q = needle.toLowerCase()
+  return item.card.title.toLowerCase().includes(q) || item.card.plainText.toLowerCase().includes(q)
+}
+
+function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
+  const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
   const { exit } = useApp()
   const { stdout } = useStdout()
+
+  const [deckId, setDeckId] = useState<string | null>(options.deckFilter ?? null)
+  const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
+  const [fullQueue, setFullQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [scroll, setScroll] = useState(0)
@@ -46,11 +82,62 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
   const [graded, setGraded] = useState(0)
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([])
   const [done, setDone] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const [search, setSearch] = useState('')
+  const [imageMode, setImageMode] = useState(false)
+
+  const rows = stdout?.rows ?? 24
+  const columns = stdout?.columns ?? 80
+  const viewportHeight = Math.max(5, rows - CHROME_ROWS)
+  const bodyWidth = Math.max(20, columns - 4)
+
+  const summaries = useMemo(() => summarizeDecks(cards, state), [cards, state])
+
+  const selectDeck = (selected: string) => {
+    const scoped = selected === ALL_DECKS ? cards : cards.filter((card) => card.deckId === selected)
+    const built = buildQueue(scoped, state, queueOptions)
+    setDeckId(selected)
+    setQueue(built)
+    setFullQueue(built)
+    setIndex(0)
+    setRevealed(false)
+    setScroll(0)
+    setDone(built.length === 0)
+    setMessage(built.length === 0 ? 'nothing due in that deck' : 'space/enter: reveal')
+  }
 
   const item = queue[index]
-  const lines = useMemo(() => (item ? bodyLines(item) : []), [item])
-  const viewportHeight = Math.max(5, (stdout?.rows ?? 24) - 7)
+
+  const lines = useMemo(() => {
+    if (!item) return []
+    const body = item.card.bodyMarkdown.trim() === '' ? '_(no body)_' : item.card.bodyMarkdown
+    return [...renderMarkdown(body, bodyWidth), ...attachmentLines(item, displayablePngs)]
+  }, [item, bodyWidth, displayablePngs])
+
   const maxScroll = Math.max(0, lines.length - viewportHeight)
+  const previewable = useMemo(
+    () => (item ? item.card.images.filter((image) => displayablePngs.has(image.path)) : []),
+    [item, displayablePngs],
+  )
+
+  // Emitted after Ink has committed the (deliberately bare) image frame, so the
+  // graphics escape is not overwritten by the next redraw.
+  useEffect(() => {
+    if (!imageMode || !stdout) return
+    const first = previewable[0]
+    if (!first) return
+    stdout.write(buildKittyClearSequence(images.tmux))
+    stdout.write(
+      buildKittyImageSequence(first.path, {
+        cols: Math.max(10, columns - 4),
+        rows: Math.max(5, rows - 4),
+        tmux: images.tmux,
+      }),
+    )
+    return () => {
+      stdout.write(buildKittyClearSequence(images.tmux))
+    }
+  }, [imageMode, previewable, stdout, images.tmux, columns, rows])
 
   const persist = (action: string) => {
     void saveState(statePath, state).catch((error: unknown) => {
@@ -67,9 +154,63 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
     else setIndex(index + 1)
   }
 
+  const recordUndo = (cardId: string, action: string) => {
+    setUndoStack((stack) => [...stack, { cardId, previousRecord: state.records[cardId], action }])
+  }
+
   useInput((input, key) => {
+    if (imageMode) {
+      setImageMode(false)
+      setMessage('closed image preview')
+      return
+    }
+
+    if (searching) {
+      if (key.escape) {
+        setSearching(false)
+        setSearch('')
+        setQueue(fullQueue)
+        setIndex(0)
+        setDone(fullQueue.length === 0)
+        setMessage('search cleared')
+        return
+      }
+      if (key.return) {
+        const found = fullQueue.filter((q) => matches(q, search))
+        setSearching(false)
+        if (search.trim() === '') {
+          setQueue(fullQueue)
+          setIndex(0)
+          setMessage('search cleared')
+          return
+        }
+        if (found.length === 0) {
+          setMessage(`no cards match "${search}"`)
+          return
+        }
+        setQueue(found)
+        setIndex(0)
+        setRevealed(false)
+        setScroll(0)
+        setDone(false)
+        setMessage(`${found.length} card${found.length === 1 ? '' : 's'} matching "${search}" · esc to clear`)
+        return
+      }
+      if (key.backspace || key.delete) {
+        setSearch((s) => s.slice(0, -1))
+        return
+      }
+      if (input && !key.ctrl && !key.meta) setSearch((s) => s + input)
+      return
+    }
+
     if (input === 'q' || (key.ctrl && input === 'c')) {
       exit()
+      return
+    }
+    if (input === '/') {
+      setSearching(true)
+      setSearch('')
       return
     }
     if (done || !item) return
@@ -79,6 +220,18 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
         setRevealed(true)
         setMessage('grade: 1 again · 2 hard · 3 good · 4 easy')
       }
+      return
+    }
+    if (input === 'i') {
+      if (previewable.length === 0) {
+        setMessage(images.enabled ? 'no PNG attachment on this card' : `image previews unavailable: ${images.reason}`)
+        return
+      }
+      if (!images.enabled) {
+        setMessage(`image previews unavailable: ${images.reason}`)
+        return
+      }
+      setImageMode(true)
       return
     }
     if (input === 'j' || key.downArrow) {
@@ -98,10 +251,14 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
       if (entry.previousRecord) state.records[entry.cardId] = entry.previousRecord
       else delete state.records[entry.cardId]
       setUndoStack((stack) => stack.slice(0, -1))
-      setIndex(entry.index)
+      // The queue may have been narrowed by a search since the card was graded.
+      const position = queue.findIndex((q) => q.card.id === entry.cardId)
+      if (position >= 0) {
+        setIndex(position)
+        setRevealed(true)
+        setScroll(0)
+      }
       setDone(false)
-      setRevealed(true)
-      setScroll(0)
       setGraded((n) => Math.max(0, n - 1))
       persist(`undid ${entry.action}`)
       setMessage(`undid ${entry.action}`)
@@ -109,10 +266,7 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
     }
     if (input === 's') {
       const record = state.records[item.card.id] ?? newRecord(item.card)
-      setUndoStack((stack) => [
-        ...stack,
-        { index, cardId: item.card.id, previousRecord: state.records[item.card.id], action: 'suspend' },
-      ])
+      recordUndo(item.card.id, 'suspend')
       state.records[item.card.id] = { ...record, suspended: true }
       persist('suspended')
       advance(`suspended "${item.card.title}"`)
@@ -121,15 +275,36 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
     const grade = GRADE_KEYS[input]
     if (grade && revealed) {
       const record = state.records[item.card.id] ?? newRecord(item.card)
-      setUndoStack((stack) => [
-        ...stack,
-        { index, cardId: item.card.id, previousRecord: state.records[item.card.id], action: grade },
-      ])
+      recordUndo(item.card.id, grade)
       state.records[item.card.id] = applyGrade(record, grade)
       persist(grade)
       advance(`graded "${item.card.title}": ${grade}`)
     }
   })
+
+  if (deckId === null) {
+    return (
+      <DeckPicker
+        decks={decks}
+        summaries={summaries}
+        height={viewportHeight}
+        onSelect={selectDeck}
+        onQuit={exit}
+      />
+    )
+  }
+
+  if (imageMode) {
+    const first = previewable[0]
+    return (
+      <Box flexDirection="column">
+        <Text bold color="cyan">
+          {first?.alt || 'image'} <Text dimColor>— {first?.path}</Text>
+        </Text>
+        <Text dimColor>any key to return</Text>
+      </Box>
+    )
+  }
 
   if (done || !item) {
     return (
@@ -160,7 +335,7 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
         {revealed ? (
           <Box flexDirection="column" marginTop={1}>
             {visible.map((line, i) => (
-              <Text key={scroll + i}>{line === '' ? ' ' : line}</Text>
+              <MarkdownLine key={scroll + i} line={line} />
             ))}
             {maxScroll > 0 && (
               <Text dimColor>
@@ -176,9 +351,14 @@ function ReviewApp({ queue, state, statePath }: ReviewSessionOptions) {
           </Box>
         )}
       </Box>
-      <Text dimColor>
-        space reveal · 1-4 grade · j/k scroll · s suspend · u undo · q quit
-      </Text>
+      {searching ? (
+        <Text color="yellow">/{search}▏</Text>
+      ) : (
+        <Text dimColor>
+          space reveal · 1-4 grade · j/k scroll · s suspend · u undo · / search
+          {previewable.length > 0 ? ' · i image' : ''} · q quit
+        </Text>
+      )}
       <Text color="yellow">{message}</Text>
     </Box>
   )

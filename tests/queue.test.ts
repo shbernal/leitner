@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildQueue } from '../src/queue.js'
+import { buildQueue, summarizeDecks } from '../src/queue.js'
 import { emptyState } from '../src/state.js'
 import type { Flashcard, ReviewRecord } from '../src/types.js'
 
@@ -61,5 +61,25 @@ describe('buildQueue', () => {
     suspendedState.records['a'] = makeRecord('a', '2026-06-01T12:00:00.000Z', true)
     const queue = buildQueue([makeCard('a')], suspendedState, {}, now)
     expect(queue).toHaveLength(0)
+  })
+})
+
+describe('summarizeDecks', () => {
+  it('counts due, new and suspended cards per deck', () => {
+    const cards = ['a', 'b', 'c', 'd'].map(makeCard)
+    const other = { ...makeCard('e'), deckId: 'other' }
+    const state = emptyState()
+    state.records['a'] = makeRecord('a', '2026-06-10T12:00:00.000Z') // due
+    state.records['b'] = makeRecord('b', '2026-07-01T12:00:00.000Z') // not due
+    state.records['c'] = makeRecord('c', '2026-06-01T12:00:00.000Z', true) // suspended
+    // d is new
+
+    const summaries = summarizeDecks([...cards, other], state, now)
+    expect(summaries.get('deck')).toEqual({ total: 4, due: 1, fresh: 1, suspended: 1 })
+    expect(summaries.get('other')).toEqual({ total: 1, due: 0, fresh: 1, suspended: 0 })
+  })
+
+  it('omits decks with no cards', () => {
+    expect(summarizeDecks([], emptyState(), now).size).toBe(0)
   })
 })
