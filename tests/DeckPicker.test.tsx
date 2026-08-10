@@ -1,7 +1,7 @@
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DeckSummary } from '../src/queue.js'
-import { ALL_DECKS, DeckPicker } from '../src/tui/DeckPicker.js'
+import { DeckPicker } from '../src/tui/DeckPicker.js'
 import type { Deck } from '../src/types.js'
 import { KEY, renderTui, type TuiHarness } from './helpers/tui.js'
 
@@ -29,7 +29,7 @@ afterEach(() => {
 })
 
 async function open(overrides: Partial<React.ComponentProps<typeof DeckPicker>> = {}) {
-  const onSelect = vi.fn<(deckId: string) => void>()
+  const onSelect = vi.fn<(deckIds: string[]) => void>()
   const onQuit = vi.fn<() => void>()
   ui = await renderTui(
     <DeckPicker
@@ -90,13 +90,25 @@ describe('DeckPicker', () => {
     const { ui, onSelect } = await open()
     await ui.press('j')
     await ui.press(KEY.enter)
-    expect(onSelect).toHaveBeenCalledWith('algebra')
+    expect(onSelect).toHaveBeenCalledWith(['algebra'])
   })
 
   it('selects every deck when "All decks" is chosen', async () => {
     const { ui, onSelect } = await open()
     await ui.press(KEY.space)
-    expect(onSelect).toHaveBeenCalledWith(ALL_DECKS)
+    expect(onSelect).toHaveBeenCalledWith(['algebra', 'botany', 'chemistry'])
+  })
+
+  it('limits "All decks" to the decks left by the filter', async () => {
+    const { ui, onSelect } = await open()
+    await ui.press('/')
+    await ui.type('a')
+    await ui.press(KEY.enter) // commits the filter
+
+    // "a" matches Algebra and Botany, so chemistry stays out of the session.
+    expect(ui.frame()).toMatch(/All decks\s+4 due\s+6 new\s+15 total/)
+    await ui.press(KEY.enter)
+    expect(onSelect).toHaveBeenCalledWith(['algebra', 'botany'])
   })
 
   it('quits on q and on escape', async () => {

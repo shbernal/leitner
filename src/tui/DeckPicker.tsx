@@ -3,13 +3,14 @@ import { Box, Text, useInput } from 'ink'
 import type { DeckSummary } from '../queue.js'
 import type { Deck } from '../types.js'
 
-export const ALL_DECKS = '__all__'
+const ALL_DECKS = '__all__'
 
 export type DeckPickerProps = {
   decks: Deck[]
   summaries: Map<string, DeckSummary>
   height: number
-  onSelect: (deckId: string) => void
+  /** The decks to review: every listed deck for "All decks", otherwise just one. */
+  onSelect: (deckIds: string[]) => void
   onQuit: () => void
 }
 
@@ -120,7 +121,9 @@ export function DeckPicker({
     }
     if (key.return || input === ' ') {
       const row = rows[clampedCursor]
-      if (row) onSelect(row.id)
+      if (!row) return
+      // "All decks" means the decks on screen, so it honours the active filter.
+      onSelect(row.id === ALL_DECKS ? rows.slice(1).map((r) => r.id) : [row.id])
     }
   })
 

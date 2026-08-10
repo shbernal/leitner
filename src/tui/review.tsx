@@ -7,7 +7,7 @@ import { applyGrade, newRecord } from '../scheduler.js'
 import { saveState, type ReviewState } from '../state.js'
 import type { Deck, Flashcard, Grade, ReviewRecord } from '../types.js'
 import { MarkdownLine } from './components.js'
-import { ALL_DECKS, DeckPicker } from './DeckPicker.js'
+import { DeckPicker } from './DeckPicker.js'
 
 export type ReviewSessionOptions = {
   cards: Flashcard[]
@@ -74,7 +74,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const { exit, waitUntilRenderFlush } = useApp()
   const { stdout } = useStdout()
 
-  const [deckId, setDeckId] = useState<string | null>(options.deckFilter ?? null)
+  // With --deck the picker is skipped entirely, so the session starts picked.
+  const [picked, setPicked] = useState(options.deckFilter !== undefined)
   const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [fullQueue, setFullQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [index, setIndex] = useState(0)
@@ -95,10 +96,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 
   const summaries = useMemo(() => summarizeDecks(cards, state), [cards, state])
 
-  const selectDeck = (selected: string) => {
-    const scoped = selected === ALL_DECKS ? cards : cards.filter((card) => card.deckId === selected)
+  const selectDeck = (deckIds: string[]) => {
+    const scope = new Set(deckIds)
+    const scoped = cards.filter((card) => scope.has(card.deckId))
     const built = buildQueue(scoped, state, queueOptions)
-    setDeckId(selected)
+    setPicked(true)
     setQueue(built)
     setFullQueue(built)
     setIndex(0)
@@ -313,7 +315,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
   })
 
-  if (deckId === null) {
+  if (!picked) {
     return (
       <DeckPicker
         decks={decks}
