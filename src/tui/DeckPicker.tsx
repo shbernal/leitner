@@ -61,6 +61,9 @@ export function DeckPicker({
               row.id.toLowerCase().includes(needle) || row.label.toLowerCase().includes(needle),
           )
 
+    // An "All decks" row over nothing would offer an empty session, so drop it too.
+    if (matched.length === 0) return []
+
     return [
       {
         id: ALL_DECKS,
@@ -71,6 +74,8 @@ export function DeckPicker({
       ...matched,
     ]
   }, [decks, summaries, filter])
+
+  const deckCount = Math.max(0, rows.length - 1)
 
   const clampedCursor = Math.min(cursor, Math.max(0, rows.length - 1))
 
@@ -135,7 +140,7 @@ export function DeckPicker({
           Select a deck
         </Text>
         <Text dimColor>
-          {rows.length - 1} decks{filter === '' ? '' : ` matching "${filter}"`}
+          {deckCount} decks{filter === '' ? '' : ` matching "${filter}"`}
         </Text>
       </Box>
       <Box borderStyle="round" borderColor="gray" flexDirection="column" paddingX={1}>

@@ -140,17 +140,31 @@ describe('DeckPicker', () => {
     expect(onQuit).not.toHaveBeenCalled()
   })
 
-  it('keeps only the "All decks" row when nothing matches the filter', async () => {
-    const { ui } = await open()
+  it('shows an empty state when nothing matches the filter', async () => {
+    const { ui, onSelect } = await open()
     await ui.press('/')
     await ui.type('zzz')
 
     const frame = ui.frame()
     expect(frame).toContain('0 decks matching "zzz"')
-    expect(frame).toMatch(/All decks\s+0 due\s+0 new\s+0 total/)
+    expect(frame).toContain('no decks match')
+    expect(frame).not.toContain('All decks')
     for (const title of ['Algebra', 'Botany', 'Chemistry']) {
       expect(frame).not.toContain(title)
     }
+
+    // Nothing to select, so enter must not start a session over every card.
+    await ui.press(KEY.enter) // commits the filter
+    await ui.press(KEY.enter) // would select the cursor row
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('shows an empty state when no deck has any cards', async () => {
+    const { ui } = await open({ summaries: new Map<string, DeckSummary>() })
+    const frame = ui.frame()
+    expect(frame).toContain('0 decks')
+    expect(frame).toContain('no decks match')
+    expect(frame).not.toContain('All decks')
   })
 
   it('hides decks that have no cards', async () => {
