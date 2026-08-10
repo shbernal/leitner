@@ -190,6 +190,31 @@ describe('ReviewApp', () => {
     expect(frame).toContain('card 1/1')
   })
 
+  it('clears a committed search on escape, as its hint promises', async () => {
+    const ui = await open()
+    await ui.press('/')
+    await ui.type('ring')
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('esc to clear')
+
+    await ui.press(KEY.escape)
+    const frame = ui.frame()
+    expect(frame).toContain('search cleared')
+    expect(frame).toContain('card 1/2')
+    expect(frame).toContain('What is a group?')
+    expect(frame).toContain('[press space or enter to reveal]')
+  })
+
+  it('leaves escape inert when no search is active', async () => {
+    const ui = await open()
+    await ui.press(KEY.space)
+    await ui.press(KEY.escape)
+
+    const frame = ui.frame()
+    expect(frame).toContain('A set with an associative operation.')
+    expect(frame).not.toContain('search cleared')
+  })
+
   it('abandons an unconfirmed search on escape', async () => {
     const ui = await open()
     await ui.press('/')

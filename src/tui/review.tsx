@@ -170,14 +170,20 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       return
     }
 
+    const clearSearch = () => {
+      setSearching(false)
+      setSearch('')
+      setQueue(fullQueue)
+      setIndex(0)
+      setRevealed(false)
+      setScroll(0)
+      setDone(fullQueue.length === 0)
+      setMessage('search cleared')
+    }
+
     if (searching) {
       if (key.escape) {
-        setSearching(false)
-        setSearch('')
-        setQueue(fullQueue)
-        setIndex(0)
-        setDone(fullQueue.length === 0)
-        setMessage('search cleared')
+        clearSearch()
         return
       }
       if (key.return) {
@@ -218,6 +224,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     if (input === '/') {
       setSearching(true)
       setSearch('')
+      return
+    }
+    // The hint on a committed search promises esc clears it.
+    if (key.escape) {
+      if (search !== '') clearSearch()
       return
     }
     if (done || !item) return
