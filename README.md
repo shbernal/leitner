@@ -114,6 +114,7 @@ always takes the incoming record, `ours` only fills in unseen cards. Pair with
 pnpm test        # vitest
 pnpm typecheck   # tsc --noEmit
 pnpm lint        # oxlint
+pnpm format      # oxfmt (use --check in CI via pnpm format:check)
 ```
 
 Layout: `src/parser.ts` (markdown → cards), `src/render.ts` (markdown →

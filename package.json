@@ -18,6 +18,8 @@
     "flashcards-tui-local": "env FLASHCARDS_TUI_CALLER_CWD=\"$INIT_CWD\" ./bin/flashcards-tui",
     "test": "vitest run",
     "lint": "oxlint src tests",
+    "format": "oxfmt src tests",
+    "format:check": "oxfmt --check src tests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
+    "oxfmt": "^0.62.0",
     "oxlint": "^1.77.0",
     "typescript": "^5.8.0",
     "vitest": "^3.1.0"
