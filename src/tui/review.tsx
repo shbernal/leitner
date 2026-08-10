@@ -71,7 +71,7 @@ function matches(item: QueueItem, needle: string): boolean {
 
 export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
-  const { exit } = useApp()
+  const { exit, waitUntilRenderFlush } = useApp()
   const { stdout } = useStdout()
 
   const [deckId, setDeckId] = useState<string | null>(options.deckFilter ?? null)
@@ -122,24 +122,33 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     [item, displayablePngs],
   )
 
-  // Emitted after Ink has committed the (deliberately bare) image frame, so the
-  // graphics escape is not overwritten by the next redraw.
+  // The graphics escape has to land after the (deliberately bare) image frame
+  // has reached the terminal, or the redraw paints over the pixels. Committing
+  // the frame is not enough — waitUntilRenderFlush() waits for the write itself.
   useEffect(() => {
     if (!imageMode || !stdout) return
     const first = previewable[0]
     if (!first) return
-    stdout.write(buildKittyClearSequence(images.tmux))
-    stdout.write(
-      buildKittyImageSequence(first.path, {
-        cols: Math.max(10, columns - 4),
-        rows: Math.max(5, rows - 4),
-        tmux: images.tmux,
-      }),
-    )
+
+    let cancelled = false
+    void (async () => {
+      await waitUntilRenderFlush()
+      if (cancelled) return
+      stdout.write(buildKittyClearSequence(images.tmux))
+      stdout.write(
+        buildKittyImageSequence(first.path, {
+          cols: Math.max(10, columns - 4),
+          rows: Math.max(5, rows - 4),
+          tmux: images.tmux,
+        }),
+      )
+    })()
+
     return () => {
+      cancelled = true
       stdout.write(buildKittyClearSequence(images.tmux))
     }
-  }, [imageMode, previewable, stdout, images.tmux, columns, rows])
+  }, [imageMode, previewable, stdout, images.tmux, columns, rows, waitUntilRenderFlush])
 
   const persist = (action: string) => {
     void saveState(statePath, state).catch((error: unknown) => {

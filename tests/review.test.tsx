@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { buildKittyClearSequence, buildKittyImageSequence } from '../src/images.js'
 import { emptyState, type ReviewState } from '../src/state.js'
 import { ReviewApp } from '../src/tui/review.js'
 import type { Flashcard, ReviewRecord } from '../src/types.js'
@@ -46,7 +47,9 @@ afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
-async function open(size?: { columns?: number; rows?: number }) {
+type Overrides = Partial<React.ComponentProps<typeof ReviewApp>>
+
+async function open(size?: { columns?: number; rows?: number }, overrides: Overrides = {}) {
   ui = await renderTui(
     <ReviewApp
       cards={cards}
@@ -57,10 +60,26 @@ async function open(size?: { columns?: number; rows?: number }) {
       deckFilter="algebra"
       images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}
       displayablePngs={new Set()}
+      {...overrides}
     />,
     size,
   )
   return ui
+}
+
+const PNG = '/notes/attachments/diagram.png'
+
+/** Same deck, but the first card carries a previewable PNG. */
+function openWithImage(tmux = false) {
+  const withImage: Flashcard = {
+    ...makeCard('a', 'What is a group?', 'A set with an associative operation.'),
+    images: [{ alt: 'Cayley table', path: PNG }],
+  }
+  return open(undefined, {
+    cards: [withImage, cards[1] as Flashcard],
+    images: { enabled: true, tmux, reason: '' },
+    displayablePngs: new Set([PNG]),
+  })
 }
 
 describe('ReviewApp', () => {
@@ -278,5 +297,46 @@ describe('ReviewApp', () => {
     const ui = await open()
     await ui.press('i')
     expect(ui.frame()).toContain('image previews unavailable: not a kitty terminal')
+  })
+
+  it('advertises the image key only for cards with a previewable PNG', async () => {
+    const ui = await openWithImage()
+    expect(ui.frame()).toContain('i image')
+
+    await ui.press(KEY.space)
+    expect(ui.frame()).toContain('📎 Cayley table → ' + PNG)
+
+    await ui.press('3')
+    expect(ui.frame()).not.toContain('i image')
+  })
+
+  it('transmits the image only after the bare frame has been flushed', async () => {
+    const ui = await openWithImage()
+    const before = ui.output().length
+
+    await ui.press('i')
+    const emitted = ui.output().slice(before)
+    const image = emitted.indexOf(buildKittyImageSequence(PNG, { cols: 96, rows: 36, tmux: false }))
+    expect(image).toBeGreaterThan(-1)
+    // The bare frame — title plus the return hint, and nothing else — precedes it.
+    expect(emitted.slice(0, image)).toContain('any key to return')
+    expect(emitted.slice(0, image)).not.toContain('space reveal')
+  })
+
+  it('clears the placed image when the preview is dismissed', async () => {
+    const ui = await openWithImage()
+    await ui.press('i')
+    const before = ui.output().length
+
+    await ui.press('x')
+    const emitted = ui.output().slice(before)
+    expect(emitted).toContain(buildKittyClearSequence(false))
+    expect(emitted).toContain('closed image preview')
+  })
+
+  it('wraps the graphics escapes for tmux passthrough when needed', async () => {
+    const ui = await openWithImage(true)
+    await ui.press('i')
+    expect(ui.output()).toContain(buildKittyImageSequence(PNG, { cols: 96, rows: 36, tmux: true }))
   })
 })

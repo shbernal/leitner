@@ -20,8 +20,9 @@ class TestStdout extends EventEmitter {
     this.rows = rows
   }
 
-  write = (frame: string): boolean => {
+  write = (frame: string, callback?: () => void): boolean => {
     this.frames.push(frame)
+    callback?.()
     return true
   }
 
@@ -63,6 +64,8 @@ export const KEY = {
 export type TuiHarness = {
   /** Full frame from the most recent render, ANSI styling stripped. */
   frame: () => string
+  /** Everything written to stdout, escapes intact — frames and direct writes alike. */
+  output: () => string
   press: (input: string) => Promise<void>
   type: (text: string) => Promise<void>
   resize: (columns: number, rows: number) => Promise<void>
@@ -101,6 +104,7 @@ export async function renderTui(
 
   const harness: TuiHarness = {
     frame: () => (stdout.frames.at(-1) ?? '').replace(ANSI, ''),
+    output: () => stdout.frames.join(''),
     press: async (input) => {
       stdin.write(input)
       await flush()
