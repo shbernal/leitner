@@ -249,6 +249,31 @@ describe('ReviewApp', () => {
     expect(frame).toContain('card 1/2')
   })
 
+  it('reflows the viewport when the terminal is resized', async () => {
+    const ui = await open({ columns: 100, rows: 40 })
+    const tall = ui.frame().split('\n').length
+
+    await ui.resize(100, 20)
+    const short = ui.frame().split('\n').length
+    expect(short).toBeLessThan(tall)
+    expect(tall - short).toBe(20)
+
+    await ui.resize(100, 40)
+    expect(ui.frame().split('\n').length).toBe(tall)
+  })
+
+  it('rewraps the card body at the new width when the terminal is resized', async () => {
+    const ui = await open({ columns: 100, rows: 40 })
+    await ui.press(KEY.space)
+    expect(ui.frame()).toContain('A set with an associative operation.')
+
+    await ui.resize(30, 40)
+    const frame = ui.frame()
+    expect(frame).not.toContain('A set with an associative operation.')
+    expect(frame).toContain('A set with an')
+    expect(Math.max(...frame.split('\n').map((line) => line.length))).toBeLessThanOrEqual(30)
+  })
+
   it('explains why the image preview is unavailable', async () => {
     const ui = await open()
     await ui.press('i')

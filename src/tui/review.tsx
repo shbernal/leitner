@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Box, Text, render, useApp, useInput, useStdout } from 'ink'
+import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
 import { buildQueue, summarizeDecks, type QueueItem, type QueueOptions } from '../queue.js'
 import { renderMarkdown, type RenderedLine } from '../render.js'
@@ -88,8 +88,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [search, setSearch] = useState('')
   const [imageMode, setImageMode] = useState(false)
 
-  const rows = stdout?.rows ?? 24
-  const columns = stdout?.columns ?? 80
+  // Re-renders on SIGWINCH, so the viewport follows the terminal as it resizes.
+  const { rows, columns } = useWindowSize()
   const viewportHeight = Math.max(5, rows - CHROME_ROWS)
   const bodyWidth = Math.max(20, columns - 4)
 
