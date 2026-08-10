@@ -69,7 +69,7 @@ function matches(item: QueueItem, needle: string): boolean {
   return item.card.title.toLowerCase().includes(q) || item.card.plainText.toLowerCase().includes(q)
 }
 
-function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
+export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
   const { exit } = useApp()
   const { stdout } = useStdout()
