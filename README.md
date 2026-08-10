@@ -76,6 +76,10 @@ esc          clear an active search
 q            quit
 ```
 
+The session runs on the terminal's alternate screen, like `vim` or `less`, so
+it leaves the scrollback untouched. The number of cards reviewed is printed on
+the normal screen once it exits.
+
 Scheduling is a minimal SM-2-style algorithm: `again` comes back in 10
 minutes and counts a lapse, `hard` grows the interval slowly and lowers ease,
 `good` multiplies the interval by ease, `easy` grows faster and raises ease.

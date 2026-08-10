@@ -227,7 +227,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
 
     if (input === 'q' || (key.ctrl && input === 'c')) {
-      exit()
+      exit({ graded })
       return
     }
     if (input === '/') {
@@ -401,8 +401,28 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   )
 }
 
+/** What ReviewApp hands back through exit(), for the summary printed after teardown. */
+export type ReviewResult = { graded: number }
+
+function isReviewResult(value: unknown): value is ReviewResult {
+  return (
+    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'graded') === 'number'
+  )
+}
+
 export async function startReview(options: ReviewSessionOptions): Promise<void> {
-  const app = render(<ReviewApp {...options} />, { exitOnCtrlC: false })
-  await app.waitUntilExit()
+  const app = render(<ReviewApp {...options} />, {
+    // Review owns the whole screen, so keep it out of the scrollback like less does.
+    exitOnCtrlC: false,
+    alternateScreen: true,
+  })
+  const result = await app.waitUntilExit()
   await saveState(options.statePath, options.state)
+
+  // The alternate screen is gone by now along with the session-complete frame,
+  // so restate the outcome on the primary screen.
+  const graded = isReviewResult(result) ? result.graded : 0
+  if (graded > 0) {
+    process.stdout.write(`Reviewed ${graded} card${graded === 1 ? '' : 's'}.\n`)
+  }
 }
