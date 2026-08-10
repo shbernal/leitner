@@ -25,19 +25,19 @@
   "dependencies": {
     "fast-glob": "^3.3.3",
     "gray-matter": "^4.0.3",
-    "ink": "^6.0.0",
+    "ink": "^6.8.0",
     "mdast-util-to-string": "^4.0.0",
-    "react": "^19.1.0",
+    "react": "^19.2.8",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
-    "@types/node": "^22.15.0",
-    "@types/react": "^19.1.0",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
     "oxfmt": "^0.62.0",
     "oxlint": "^1.77.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.1.0"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }
