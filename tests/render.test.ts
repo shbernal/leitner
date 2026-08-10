@@ -7,7 +7,11 @@ function plain(lines: ReturnType<typeof renderMarkdown>): string[] {
 
 describe('parseInline', () => {
   it('styles bold, italic and inline code', () => {
-    expect(parseInline('a **b** c')).toEqual([{ text: 'a ' }, { text: 'b', bold: true }, { text: ' c' }])
+    expect(parseInline('a **b** c')).toEqual([
+      { text: 'a ' },
+      { text: 'b', bold: true },
+      { text: ' c' },
+    ])
     expect(parseInline('*em*')).toEqual([{ text: 'em', italic: true }])
     expect(parseInline('use `grep` here')).toEqual([
       { text: 'use ' },

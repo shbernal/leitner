@@ -128,7 +128,10 @@ export function mergeRecords(
 }
 
 /** Drop records whose cards no longer exist in the parsed source directory. */
-export function pruneToCards(state: ReviewState, cardIds: Iterable<string>): { state: ReviewState; removed: number } {
+export function pruneToCards(
+  state: ReviewState,
+  cardIds: Iterable<string>,
+): { state: ReviewState; removed: number } {
   const live = new Set(cardIds)
   const pruned = emptyState()
   let removed = 0

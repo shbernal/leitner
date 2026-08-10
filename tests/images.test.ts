@@ -38,7 +38,11 @@ describe('detectImageSupport', () => {
   })
 
   it('flags tmux so escapes get wrapped', () => {
-    const support = detectImageSupport({ TERM: 'tmux-256color', TMUX: '/tmp/tmux-1000/default,1,0', KITTY_WINDOW_ID: '1' })
+    const support = detectImageSupport({
+      TERM: 'tmux-256color',
+      TMUX: '/tmp/tmux-1000/default,1,0',
+      KITTY_WINDOW_ID: '1',
+    })
     expect(support.enabled).toBe(true)
     expect(support.tmux).toBe(true)
   })

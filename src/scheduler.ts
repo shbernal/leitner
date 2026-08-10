@@ -20,7 +20,11 @@ export function newRecord(card: Flashcard, now: Date = new Date()): ReviewRecord
   }
 }
 
-export function applyGrade(record: ReviewRecord, grade: Grade, now: Date = new Date()): ReviewRecord {
+export function applyGrade(
+  record: ReviewRecord,
+  grade: Grade,
+  now: Date = new Date(),
+): ReviewRecord {
   const next: ReviewRecord = { ...record }
   next.reps = record.reps + 1
   next.lastReviewedAt = now.toISOString()
@@ -37,7 +41,8 @@ export function applyGrade(record: ReviewRecord, grade: Grade, now: Date = new D
       next.intervalDays = record.intervalDays < 1 ? 1 : Math.round(record.intervalDays * 1.2)
       break
     case 'good':
-      next.intervalDays = record.intervalDays < 1 ? 1 : Math.round(record.intervalDays * record.ease)
+      next.intervalDays =
+        record.intervalDays < 1 ? 1 : Math.round(record.intervalDays * record.ease)
       break
     case 'easy':
       next.ease = record.ease + 0.15

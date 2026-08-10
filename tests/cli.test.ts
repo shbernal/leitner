@@ -3,7 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { filterCards, runExport, runImport, runList, runStats, type CliOptions } from '../src/cli.js'
+import {
+  filterCards,
+  runExport,
+  runImport,
+  runList,
+  runStats,
+  type CliOptions,
+} from '../src/cli.js'
 import { parseDirectory } from '../src/parser.js'
 import { loadState, saveState } from '../src/state.js'
 import type { ReviewRecord } from '../src/types.js'
@@ -129,7 +136,13 @@ describe('import command', () => {
     await saveState(statePath, { version: 1, records: { a: record('a', { reps: 1 }) } })
     await fs.writeFile(
       bundlePath,
-      JSON.stringify({ version: 1, records: [record('a', { reps: 9, lastReviewedAt: '2027-01-01T00:00:00.000Z' }), record('b')] }),
+      JSON.stringify({
+        version: 1,
+        records: [
+          record('a', { reps: 9, lastReviewedAt: '2027-01-01T00:00:00.000Z' }),
+          record('b'),
+        ],
+      }),
     )
 
     await runImport(options('import', { statePath, bundlePath }))
@@ -155,11 +168,15 @@ describe('import command', () => {
   it('reports a missing or malformed bundle by path', async () => {
     const statePath = path.join(dir, 'review-state.json')
     const missing = path.join(dir, 'nope.json')
-    await expect(runImport(options('import', { statePath, bundlePath: missing }))).rejects.toThrow(/no such bundle/)
+    await expect(runImport(options('import', { statePath, bundlePath: missing }))).rejects.toThrow(
+      /no such bundle/,
+    )
 
     const bad = path.join(dir, 'bad.json')
     await fs.writeFile(bad, '{"records":[{"cardId":"a"}]}')
-    await expect(runImport(options('import', { statePath, bundlePath: bad }))).rejects.toThrow(/missing required fields/)
+    await expect(runImport(options('import', { statePath, bundlePath: bad }))).rejects.toThrow(
+      /missing required fields/,
+    )
   })
 })
 

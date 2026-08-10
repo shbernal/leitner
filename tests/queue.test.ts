@@ -51,7 +51,10 @@ describe('buildQueue', () => {
   })
 
   it('supports dueOnly, newOnly, and limit', () => {
-    expect(buildQueue(cards, state, { dueOnly: true }, now).map((q) => q.card.id)).toEqual(['b', 'a'])
+    expect(buildQueue(cards, state, { dueOnly: true }, now).map((q) => q.card.id)).toEqual([
+      'b',
+      'a',
+    ])
     expect(buildQueue(cards, state, { newOnly: true }, now).map((q) => q.card.id)).toEqual(['d'])
     expect(buildQueue(cards, state, { limit: 1 }, now)).toHaveLength(1)
   })

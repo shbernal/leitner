@@ -7,14 +7,7 @@ import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import type { Heading, Image, Root, RootContent } from 'mdast'
-import type {
-  CardImage,
-  CardType,
-  Deck,
-  Flashcard,
-  ParseResult,
-  ParseWarning,
-} from './types.js'
+import type { CardImage, CardType, Deck, Flashcard, ParseResult, ParseWarning } from './types.js'
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set(['content', 'film', 'vocabulary'])
 
@@ -29,7 +22,11 @@ export function slugify(text: string): string {
   )
 }
 
-export function cardId(relativeSourcePath: string, headingSlug: string, headingIndex: number): string {
+export function cardId(
+  relativeSourcePath: string,
+  headingSlug: string,
+  headingIndex: number,
+): string {
   return createHash('sha1')
     .update(`${relativeSourcePath}:${headingSlug}:${headingIndex}`)
     .digest('hex')

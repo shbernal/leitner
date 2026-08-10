@@ -110,7 +110,9 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   return {
     command: command as Command,
     // `import` takes a bundle path where the other commands take a source dir.
-    sourceDir: expandHome(command === 'import' ? config.sourceDir : (positionals[1] ?? config.sourceDir)),
+    sourceDir: expandHome(
+      command === 'import' ? config.sourceDir : (positionals[1] ?? config.sourceDir),
+    ),
     statePath: values.state ? expandHome(values.state) : defaultStatePath(),
     deck: values.deck ?? config.defaultDeckFilter ?? undefined,
     type: values.type as CardType | undefined,
@@ -126,7 +128,10 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   }
 }
 
-export function filterCards(cards: Flashcard[], options: Pick<CliOptions, 'deck' | 'type'>): Flashcard[] {
+export function filterCards(
+  cards: Flashcard[],
+  options: Pick<CliOptions, 'deck' | 'type'>,
+): Flashcard[] {
   return cards.filter((card) => {
     if (options.type && card.type !== options.type) return false
     if (options.deck && card.deckId !== options.deck && !card.sourcePath.includes(options.deck)) {
@@ -157,7 +162,9 @@ export async function runList(options: CliOptions): Promise<void> {
   process.stdout.write(`${'deck'.padEnd(idWidth)}  cards  type        title\n`)
   for (const deck of decks) {
     const count = String(counts.get(deck.id) ?? 0).padStart(5)
-    process.stdout.write(`${deck.id.padEnd(idWidth)}  ${count}  ${deck.type.padEnd(10)}  ${deck.title}\n`)
+    process.stdout.write(
+      `${deck.id.padEnd(idWidth)}  ${count}  ${deck.type.padEnd(10)}  ${deck.title}\n`,
+    )
   }
   process.stdout.write(`\n${decks.length} decks, ${cards.length} cards\n`)
 }
@@ -235,7 +242,9 @@ export async function runImport(options: CliOptions): Promise<void> {
   try {
     incoming = parseBundle(raw)
   } catch (error) {
-    throw new Error(`${options.bundlePath}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(
+      `${options.bundlePath}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   const current = await loadState(options.statePath)
@@ -303,7 +312,9 @@ export async function runReview(options: CliOptions): Promise<void> {
     statePath: options.statePath,
     queueOptions: { dueOnly: options.dueOnly, newOnly: options.newOnly, limit: options.limit },
     deckFilter: options.deck,
-    images: options.images ? support : { ...support, enabled: false, reason: 'pass --images to enable previews' },
+    images: options.images
+      ? support
+      : { ...support, enabled: false, reason: 'pass --images to enable previews' },
     displayablePngs,
   })
 }

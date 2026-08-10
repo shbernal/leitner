@@ -62,7 +62,9 @@ export function parseInline(input: string, base: Omit<Span, 'text'> = {}): Span[
     const link = /^\[([^\]]*)\]\(([^)\s]+)[^)]*\)/.exec(rest)
     if (link?.[1] !== undefined && link[2] !== undefined) {
       flush()
-      spans.push(text(link[1] === '' ? link[2] : link[1], { ...base, color: 'blue', underline: true }))
+      spans.push(
+        text(link[1] === '' ? link[2] : link[1], { ...base, color: 'blue', underline: true }),
+      )
       i += link[0].length
       continue
     }
@@ -128,9 +130,12 @@ export function wrapSpans(spans: Span[], width: number, hangingIndent = ''): Ren
   const pushLine = () => {
     // A break can land just after a space token; keep it off the line so
     // wrapped text does not push against the card border.
-    while (current.length > 0 && /^\s+$/.test(current[current.length - 1]?.text ?? '')) current.pop()
+    while (current.length > 0 && /^\s+$/.test(current[current.length - 1]?.text ?? ''))
+      current.pop()
     if (current.length === 0 && lines.length > 0) return
-    lines.push({ spans: isFirst || hangingIndent === '' ? current : [text(hangingIndent), ...current] })
+    lines.push({
+      spans: isFirst || hangingIndent === '' ? current : [text(hangingIndent), ...current],
+    })
     current = []
     used = 0
     isFirst = false
@@ -191,7 +196,8 @@ export function renderMarkdown(markdown: string, width: number): RenderedLine[] 
       } else {
         inFence = true
         fenceLang = (fence[1] ?? '').trim()
-        if (fenceLang !== '') out.push({ spans: [text(`  ${fenceLang}`, { dim: true, italic: true })] })
+        if (fenceLang !== '')
+          out.push({ spans: [text(`  ${fenceLang}`, { dim: true, italic: true })] })
       }
       continue
     }
@@ -235,9 +241,16 @@ export function renderMarkdown(markdown: string, width: number): RenderedLine[] 
       const indent = '  '.repeat(depth)
       const marker = `${indent}${BULLET} `
       const wrapped = wrapSpans(parseInline(bullet[2]), Math.max(1, width - marker.length), '')
-      out.push(...wrapped.map((line, i) => ({
-        spans: [text(i === 0 ? marker : ' '.repeat(marker.length), { color: i === 0 ? 'yellow' : undefined }), ...line.spans],
-      })))
+      out.push(
+        ...wrapped.map((line, i) => ({
+          spans: [
+            text(i === 0 ? marker : ' '.repeat(marker.length), {
+              color: i === 0 ? 'yellow' : undefined,
+            }),
+            ...line.spans,
+          ],
+        })),
+      )
       continue
     }
 
@@ -246,9 +259,16 @@ export function renderMarkdown(markdown: string, width: number): RenderedLine[] 
       const indent = '  '.repeat(Math.floor(ordered[1].length / 2))
       const marker = `${indent}${ordered[2]}. `
       const wrapped = wrapSpans(parseInline(ordered[3]), Math.max(1, width - marker.length), '')
-      out.push(...wrapped.map((line, i) => ({
-        spans: [text(i === 0 ? marker : ' '.repeat(marker.length), { color: i === 0 ? 'yellow' : undefined }), ...line.spans],
-      })))
+      out.push(
+        ...wrapped.map((line, i) => ({
+          spans: [
+            text(i === 0 ? marker : ' '.repeat(marker.length), {
+              color: i === 0 ? 'yellow' : undefined,
+            }),
+            ...line.spans,
+          ],
+        })),
+      )
       continue
     }
 

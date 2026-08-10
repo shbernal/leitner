@@ -31,7 +31,13 @@ function totals(summaries: Iterable<DeckSummary>): DeckSummary {
   return all
 }
 
-export function DeckPicker({ decks, summaries, height, onSelect, onQuit }: DeckPickerProps): React.ReactElement {
+export function DeckPicker({
+  decks,
+  summaries,
+  height,
+  onSelect,
+  onQuit,
+}: DeckPickerProps): React.ReactElement {
   const [cursor, setCursor] = useState(0)
   const [filter, setFilter] = useState('')
   const [filtering, setFiltering] = useState(false)
@@ -50,10 +56,18 @@ export function DeckPicker({ decks, summaries, height, onSelect, onQuit }: DeckP
     const matched =
       needle === ''
         ? deckRows
-        : deckRows.filter((row) => row.id.toLowerCase().includes(needle) || row.label.toLowerCase().includes(needle))
+        : deckRows.filter(
+            (row) =>
+              row.id.toLowerCase().includes(needle) || row.label.toLowerCase().includes(needle),
+          )
 
     return [
-      { id: ALL_DECKS, label: 'All decks', type: '', summary: totals(matched.map((r) => r.summary)) },
+      {
+        id: ALL_DECKS,
+        label: 'All decks',
+        type: '',
+        summary: totals(matched.map((r) => r.summary)),
+      },
       ...matched,
     ]
   }, [decks, summaries, filter])
@@ -107,7 +121,10 @@ export function DeckPicker({ decks, summaries, height, onSelect, onQuit }: DeckP
 
   // Keep the cursor inside the visible window as it moves through a long list.
   const viewport = Math.max(3, height)
-  const start = Math.max(0, Math.min(clampedCursor - Math.floor(viewport / 2), Math.max(0, rows.length - viewport)))
+  const start = Math.max(
+    0,
+    Math.min(clampedCursor - Math.floor(viewport / 2), Math.max(0, rows.length - viewport)),
+  )
   const visible = rows.slice(start, start + viewport)
   const labelWidth = Math.max(12, ...rows.map((r) => r.label.length))
 

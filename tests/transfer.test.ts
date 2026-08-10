@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { emptyState, type ReviewState } from '../src/state.js'
-import { isMergeStrategy, mergeRecords, parseBundle, pruneToCards, toBundle } from '../src/transfer.js'
+import {
+  isMergeStrategy,
+  mergeRecords,
+  parseBundle,
+  pruneToCards,
+  toBundle,
+} from '../src/transfer.js'
 import type { ReviewRecord } from '../src/types.js'
 
 function record(cardId: string, overrides: Partial<ReviewRecord> = {}): ReviewRecord {
@@ -42,18 +48,27 @@ describe('parseBundle', () => {
 
   it('also reads a raw review-state file', () => {
     const raw = JSON.stringify(stateWith(record('a'), record('b')))
-    expect(parseBundle(raw).map((r) => r.cardId).sort()).toEqual(['a', 'b'])
+    expect(
+      parseBundle(raw)
+        .map((r) => r.cardId)
+        .sort(),
+    ).toEqual(['a', 'b'])
   })
 
   it('rejects malformed input with a useful message', () => {
     expect(() => parseBundle('{')).toThrow(/not valid JSON/)
     expect(() => parseBundle('[]')).toThrow(/missing a `records`/)
-    expect(() => parseBundle('{"records":[{"cardId":"a"}]}')).toThrow(/record 0 is missing required fields/)
+    expect(() => parseBundle('{"records":[{"cardId":"a"}]}')).toThrow(
+      /record 0 is missing required fields/,
+    )
   })
 })
 
 describe('mergeRecords', () => {
-  const ours = stateWith(record('shared', { lastReviewedAt: '2026-07-01T00:00:00.000Z', reps: 5 }), record('only-ours'))
+  const ours = stateWith(
+    record('shared', { lastReviewedAt: '2026-07-01T00:00:00.000Z', reps: 5 }),
+    record('only-ours'),
+  )
 
   it('adds records we have never seen', () => {
     const result = mergeRecords(ours, [record('brand-new')])
@@ -63,11 +78,15 @@ describe('mergeRecords', () => {
   })
 
   it('newer keeps whichever side was reviewed most recently', () => {
-    const newer = mergeRecords(ours, [record('shared', { lastReviewedAt: '2026-07-20T00:00:00.000Z', reps: 9 })])
+    const newer = mergeRecords(ours, [
+      record('shared', { lastReviewedAt: '2026-07-20T00:00:00.000Z', reps: 9 }),
+    ])
     expect(newer.updated).toBe(1)
     expect(newer.state.records['shared']?.reps).toBe(9)
 
-    const older = mergeRecords(ours, [record('shared', { lastReviewedAt: '2026-06-01T00:00:00.000Z', reps: 9 })])
+    const older = mergeRecords(ours, [
+      record('shared', { lastReviewedAt: '2026-06-01T00:00:00.000Z', reps: 9 }),
+    ])
     expect(older.kept).toBe(1)
     expect(older.state.records['shared']?.reps).toBe(5)
   })
@@ -79,13 +98,19 @@ describe('mergeRecords', () => {
   })
 
   it('does not mutate the original state', () => {
-    mergeRecords(ours, [record('shared', { reps: 99, lastReviewedAt: '2027-01-01T00:00:00.000Z' })], 'theirs')
+    mergeRecords(
+      ours,
+      [record('shared', { reps: 99, lastReviewedAt: '2027-01-01T00:00:00.000Z' })],
+      'theirs',
+    )
     expect(ours.records['shared']?.reps).toBe(5)
   })
 
   it('falls back to dueAt when a record was never reviewed', () => {
     const noStamp = stateWith(record('x', { dueAt: '2026-01-01T00:00:00.000Z' }))
-    const result = mergeRecords(noStamp, [record('x', { dueAt: '2026-09-01T00:00:00.000Z', reps: 7 })])
+    const result = mergeRecords(noStamp, [
+      record('x', { dueAt: '2026-09-01T00:00:00.000Z', reps: 7 }),
+    ])
     expect(result.state.records['x']?.reps).toBe(7)
   })
 })

@@ -58,7 +58,9 @@ function attachmentLines(item: QueueItem, displayablePngs: Set<string>): Rendere
 function initialQueue(options: ReviewSessionOptions): QueueItem[] {
   const { deckFilter, cards, state, queueOptions } = options
   if (deckFilter === undefined) return []
-  const scoped = cards.filter((card) => card.deckId === deckFilter || card.sourcePath.includes(deckFilter))
+  const scoped = cards.filter(
+    (card) => card.deckId === deckFilter || card.sourcePath.includes(deckFilter),
+  )
   return buildQueue(scoped, state, queueOptions)
 }
 
@@ -193,7 +195,9 @@ function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         setRevealed(false)
         setScroll(0)
         setDone(false)
-        setMessage(`${found.length} card${found.length === 1 ? '' : 's'} matching "${search}" · esc to clear`)
+        setMessage(
+          `${found.length} card${found.length === 1 ? '' : 's'} matching "${search}" · esc to clear`,
+        )
         return
       }
       if (key.backspace || key.delete) {
@@ -224,7 +228,11 @@ function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
     if (input === 'i') {
       if (previewable.length === 0) {
-        setMessage(images.enabled ? 'no PNG attachment on this card' : `image previews unavailable: ${images.reason}`)
+        setMessage(
+          images.enabled
+            ? 'no PNG attachment on this card'
+            : `image previews unavailable: ${images.reason}`,
+        )
         return
       }
       if (!images.enabled) {
@@ -330,7 +338,13 @@ function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
           {item.isNew ? ' · NEW' : ''}
         </Text>
       </Box>
-      <Box borderStyle="round" borderColor="gray" flexDirection="column" paddingX={1} minHeight={viewportHeight + 2}>
+      <Box
+        borderStyle="round"
+        borderColor="gray"
+        flexDirection="column"
+        paddingX={1}
+        minHeight={viewportHeight + 2}
+      >
         <Text bold>{item.card.title}</Text>
         {revealed ? (
           <Box flexDirection="column" marginTop={1}>
