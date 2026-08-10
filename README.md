@@ -113,7 +113,7 @@ always takes the incoming record, `ours` only fills in unseen cards. Pair with
 ```bash
 pnpm test        # vitest
 pnpm typecheck   # tsc --noEmit
-pnpm lint        # eslint
+pnpm lint        # oxlint
 ```
 
 Layout: `src/parser.ts` (markdown → cards), `src/render.ts` (markdown →
