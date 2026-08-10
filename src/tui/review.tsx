@@ -157,7 +157,10 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   }
 
   const recordUndo = (cardId: string, action: string) => {
-    setUndoStack((stack) => [...stack, { cardId, previousRecord: state.records[cardId], action }])
+    // Read the record now, not inside the updater: callers mutate state.records
+    // immediately after, and React runs the updater during the next render.
+    const previousRecord = state.records[cardId]
+    setUndoStack((stack) => [...stack, { cardId, previousRecord, action }])
   }
 
   useInput((input, key) => {

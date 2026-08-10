@@ -5,7 +5,7 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { emptyState, type ReviewState } from '../src/state.js'
 import { ReviewApp } from '../src/tui/review.js'
-import type { Flashcard } from '../src/types.js'
+import type { Flashcard, ReviewRecord } from '../src/types.js'
 import { KEY, renderTui, type TuiHarness } from './helpers/tui.js'
 
 function makeCard(id: string, title: string, body: string): Flashcard {
@@ -138,6 +138,30 @@ describe('ReviewApp', () => {
     const frame = ui.frame()
     expect(frame).toContain('undid good')
     expect(frame).toContain('card 1/2')
+    expect(state.records['a']).toBeUndefined()
+  })
+
+  it('undo restores the record a previously reviewed card already had', async () => {
+    const seeded: ReviewRecord = {
+      cardId: 'a',
+      sourcePath: '/notes/algebra.md',
+      sourceMtimeMs: 0,
+      suspended: false,
+      dueAt: '2020-01-01T00:00:00.000Z',
+      intervalDays: 4,
+      ease: 2.1,
+      reps: 3,
+      lapses: 1,
+    }
+    state.records['a'] = { ...seeded }
+
+    const ui = await open()
+    await ui.press(KEY.space)
+    await ui.press('3')
+    expect(state.records['a']).not.toEqual(seeded)
+
+    await ui.press('u')
+    expect(state.records['a']).toEqual(seeded)
   })
 
   it('reports when there is nothing to undo', async () => {
