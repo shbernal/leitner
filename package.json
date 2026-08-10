@@ -14,7 +14,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "flashcards-tui-local": "env FLASHCARDS_TUI_CALLER_CWD=\"$INIT_CWD\" ./bin/flashcards-tui",
     "test": "vitest run",
     "lint": "oxlint src tests",

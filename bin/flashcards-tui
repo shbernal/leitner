@@ -9,7 +9,7 @@ entry="$repo/dist/index.js"
 needs_build=0
 if [[ ! -f "$entry" ]]; then
   needs_build=1
-elif [[ -n "$(find "$repo/src" "$repo/tsconfig.json" -newer "$entry" -print -quit)" ]]; then
+elif [[ -n "$(find "$repo/src" "$repo/tsconfig.json" "$repo/tsconfig.build.json" -newer "$entry" -print -quit)" ]]; then
   needs_build=1
 fi
 

@@ -112,10 +112,14 @@ always takes the incoming record, `ours` only fills in unseen cards. Pair with
 
 ```bash
 pnpm test        # vitest
-pnpm typecheck   # tsc --noEmit
+pnpm typecheck   # tsc --noEmit over src and tests
 pnpm lint        # oxlint
 pnpm format      # oxfmt (use --check in CI via pnpm format:check)
 ```
+
+`tsconfig.json` is the checking config and covers `tests/` too; `pnpm build`
+uses `tsconfig.build.json`, which narrows the input to `src` so only library
+code is emitted to `dist`.
 
 Layout: `src/parser.ts` (markdown → cards), `src/render.ts` (markdown →
 styled terminal lines), `src/scheduler.ts` (grading), `src/state.ts` (JSON
