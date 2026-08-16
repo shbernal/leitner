@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "bin": {
     "leitner": "dist/index.js"
@@ -36,8 +36,8 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
-    "oxfmt": "^0.62.0",
-    "oxlint": "^1.77.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
