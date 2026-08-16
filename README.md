@@ -111,9 +111,14 @@ records across; when two or more headings were renamed in one pass the pairing
 is ambiguous, so those cards are left to come back as new rather than risk
 attaching history to the wrong card.
 
-Scheduling is a minimal SM-2-style algorithm: `again` comes back in 10
-minutes and counts a lapse, `hard` grows the interval slowly and lowers ease,
-`good` multiplies the interval by ease, `easy` grows faster and raises ease.
+### Scheduling
+
+A minimal SM-2-style algorithm: `again` comes back in 10 minutes and counts a
+lapse, `hard` grows the interval slowly and lowers ease, `good` multiplies the
+interval by ease, `easy` grows faster and raises ease. Anki compatibility is not
+a goal, and there is no `.apkg` on either side.
+[`docs/scheduling.md`](docs/scheduling.md) has the exact transitions, the queue
+order, the state file, and the config keys.
 
 ### Image previews
 
