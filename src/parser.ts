@@ -2,16 +2,8 @@ import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import fastGlob from 'fast-glob'
-import matter from 'gray-matter'
-import { toString as mdastToString } from 'mdast-util-to-string'
-import remarkParse from 'remark-parse'
-import { unified } from 'unified'
-import type { Heading, Image, Root, RootContent } from 'mdast'
-import type { CardImage, CardType, Deck, Flashcard, ParseResult, ParseWarning } from './types.js'
-
-const KNOWN_TYPES: ReadonlySet<string> = new Set(['content', 'film', 'vocabulary'])
-
-const processor = unified().use(remarkParse)
+import { parseDeck } from './deck.js'
+import type { CardImage, Deck, Flashcard, ParseResult, ParseWarning } from './types.js'
 
 export function slugify(text: string): string {
   return (
@@ -32,33 +24,18 @@ export function cardId(
     .digest('hex')
 }
 
-function cardType(frontmatter: Record<string, unknown>): CardType {
-  const raw = frontmatter['type']
-  return typeof raw === 'string' && KNOWN_TYPES.has(raw) ? (raw as CardType) : 'unknown'
+/** True for a destination carrying a URI scheme, which is never resolved to disk. */
+function isRemote(src: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(src)
 }
 
-function frontmatterTags(frontmatter: Record<string, unknown>): string[] {
-  const raw = frontmatter['tags']
-  if (!Array.isArray(raw)) return []
-  return raw.filter((tag): tag is string => typeof tag === 'string')
-}
-
-function collectImages(nodes: RootContent[], sourceDir: string): CardImage[] {
-  const images: CardImage[] = []
-  const visit = (node: { type: string; children?: unknown[] }) => {
-    if (node.type === 'image') {
-      const image = node as unknown as Image
-      const url = image.url ?? ''
-      // Only resolve local file references; leave remote URLs untouched.
-      const resolved = /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : path.resolve(sourceDir, url)
-      images.push({ alt: image.alt ?? '', path: resolved })
-    }
-    for (const child of node.children ?? []) {
-      visit(child as { type: string; children?: unknown[] })
-    }
+async function exists(file: string): Promise<boolean> {
+  try {
+    await fs.access(file)
+    return true
+  } catch {
+    return false
   }
-  for (const node of nodes) visit(node)
-  return images
 }
 
 type ParsedFile = {
@@ -72,74 +49,78 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
   const [raw, stat] = await Promise.all([fs.readFile(sourcePath, 'utf8'), fs.stat(sourcePath)])
 
   if (raw.trim() === '') {
-    return { deck: null, cards: [], warnings: [{ sourcePath, message: 'empty file' }] }
-  }
-
-  let frontmatter: Record<string, unknown> = {}
-  let content = raw
-  try {
-    const parsed = matter(raw)
-    frontmatter = parsed.data as Record<string, unknown>
-    content = parsed.content
-  } catch (error) {
-    warnings.push({
-      sourcePath,
-      message: `invalid frontmatter, treating whole file as content: ${String(error)}`,
-    })
-  }
-
-  const tree = processor.parse(content) as Root
-  const relPath = path.relative(rootDir, sourcePath)
-  const type = cardType(frontmatter)
-  const tags = frontmatterTags(frontmatter)
-  const sourceDir = path.dirname(sourcePath)
-
-  const firstH1 = tree.children.find(
-    (node): node is Heading => node.type === 'heading' && node.depth === 1,
-  )
-  const deckTitle = firstH1 ? mdastToString(firstH1) : path.basename(sourcePath, '.md')
-  const deckId = slugify(relPath.replace(/\.md$/, ''))
-
-  const cards: Flashcard[] = []
-  let headingIndex = -1
-  for (let i = 0; i < tree.children.length; i++) {
-    const node = tree.children[i]
-    if (!node || node.type !== 'heading' || node.depth !== 2) continue
-    headingIndex++
-
-    const bodyNodes: RootContent[] = []
-    for (let j = i + 1; j < tree.children.length; j++) {
-      const next = tree.children[j]
-      if (!next) break
-      if (next.type === 'heading' && next.depth <= 2) break
-      bodyNodes.push(next)
+    return {
+      deck: null,
+      cards: [],
+      warnings: [{ sourcePath, message: 'empty file', code: null, cardIndex: null }],
     }
+  }
 
-    const title = mdastToString(node)
-    const bodyStart = bodyNodes[0]?.position?.start.offset
-    const bodyEnd = bodyNodes.at(-1)?.position?.end.offset
-    const bodyMarkdown =
-      bodyStart !== undefined && bodyEnd !== undefined
-        ? content.slice(bodyStart, bodyEnd).trim()
-        : ''
+  const parsed = parseDeck(raw)
+  for (const { code, cardIndex, message } of parsed.diagnostics) {
+    warnings.push({ sourcePath, message, code, cardIndex })
+  }
 
-    cards.push({
-      id: cardId(relPath, slugify(title), headingIndex),
+  const relPath = path.relative(rootDir, sourcePath)
+  const sourceDir = path.dirname(sourcePath)
+  const deckId = slugify(relPath.replace(/\.md$/, ''))
+  // The format leaves the deck title optional (§4.2) and permits — but does not
+  // require — a filename fallback. A review session has to print something.
+  const deckTitle = parsed.title ?? path.basename(sourcePath, '.md')
+  const type =
+    typeof parsed.frontmatter['type'] === 'string' ? parsed.frontmatter['type'] : undefined
+
+  const cards: Flashcard[] = parsed.cards.map((card, headingIndex) => {
+    const images: CardImage[] = card.images.map((image) => ({
+      alt: image.alt,
+      src: image.src,
+      path: isRemote(image.src) ? image.src : path.resolve(sourceDir, image.src),
+    }))
+
+    return {
+      id: cardId(relPath, slugify(card.headingText), headingIndex),
       deckId,
       deckTitle,
       sourcePath,
       sourceMtimeMs: stat.mtimeMs,
-      type,
-      title,
-      bodyMarkdown,
-      plainText: bodyNodes.map((n) => mdastToString(n)).join('\n'),
-      images: collectImages(bodyNodes, sourceDir),
-      tags,
-    })
-  }
+      sourceLine: card.headingLine,
+      ...(type === undefined ? {} : { type }),
+      title: card.headingText,
+      frontBody: card.frontBody,
+      back: card.back,
+      plainText: card.plainText,
+      images,
+      cardTags: card.cardTags,
+      tags: card.tags,
+    }
+  })
+
+  /* §7: an image that cannot be resolved is reported, never dropped in silence. The
+     check is here rather than in deck.ts because whether a path resolves is a fact
+     about the filesystem, not about the markdown. Remote destinations are legal and
+     resolve to nothing on disk by definition, so they are left to render time. */
+  await Promise.all(
+    cards.map(async (card, cardIndex) => {
+      for (const image of card.images) {
+        if (isRemote(image.src)) continue
+        if (await exists(image.path)) continue
+        warnings.push({
+          sourcePath,
+          message: `image not found: ${image.src}`,
+          code: 'unresolved-image',
+          cardIndex,
+        })
+      }
+    }),
+  )
 
   if (cards.length === 0) {
-    warnings.push({ sourcePath, message: 'no `##` card headings found' })
+    warnings.push({
+      sourcePath,
+      message: 'no `##` card headings found',
+      code: null,
+      cardIndex: null,
+    })
     return { deck: null, cards: [], warnings }
   }
 
@@ -147,7 +128,7 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
     id: deckId,
     title: deckTitle,
     sourcePath,
-    type,
+    ...(type === undefined ? {} : { type }),
     cardCount: cards.length,
   }
   return { deck, cards, warnings }
@@ -172,7 +153,12 @@ export async function parseDirectory(rootDir: string): Promise<ParseResult> {
       cards.push(...result.cards)
       warnings.push(...result.warnings)
     } catch (error) {
-      warnings.push({ sourcePath: file, message: `failed to parse: ${String(error)}` })
+      warnings.push({
+        sourcePath: file,
+        message: `failed to parse: ${String(error)}`,
+        code: null,
+        cardIndex: null,
+      })
     }
   }
 

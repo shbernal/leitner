@@ -7,6 +7,8 @@
  * would buy correctness on constructs these notes do not use.
  */
 
+import { isTagsOnlyLine } from './tags.js'
+
 export type Span = {
   text: string
   bold?: boolean
@@ -208,6 +210,12 @@ export function renderMarkdown(markdown: string, width: number): RenderedLine[] 
       continue
     }
 
+    // Flashcard Markdown §6.3 makes this line-based rather than token-based: a line
+    // that is nothing but tags is metadata and is hidden, while a tag written inside
+    // a sentence stays visible. Hiding every tag would render "The #verbs group of
+    // motion" as "The group of motion", and Obsidian shows the inline one too.
+    if (isTagsOnlyLine(raw)) continue
+
     if (raw.trim() === '') {
       out.push({ spans: [] })
       continue
@@ -275,7 +283,9 @@ export function renderMarkdown(markdown: string, width: number): RenderedLine[] 
     out.push(...wrapSpans(parseInline(raw.trim()), width))
   }
 
-  // Trailing blank lines waste viewport rows in a small review box.
+  // Blank lines at either end waste viewport rows in a small review box, and a
+  // hidden tag line leaves one behind wherever it sat.
   while (out.length > 0 && lineWidth(out[out.length - 1] as RenderedLine) === 0) out.pop()
+  while (out.length > 0 && lineWidth(out[0] as RenderedLine) === 0) out.shift()
   return out
 }

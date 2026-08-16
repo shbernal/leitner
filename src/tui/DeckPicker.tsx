@@ -48,7 +48,7 @@ export function DeckPicker({
       .map((deck) => ({
         id: deck.id,
         label: deck.title,
-        type: deck.type,
+        type: deck.type ?? '',
         summary: summaries.get(deck.id) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
       }))
       .filter((row) => row.summary.total > 0)

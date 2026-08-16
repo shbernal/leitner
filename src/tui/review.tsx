@@ -38,6 +38,11 @@ const GRADE_KEYS: Record<string, Grade> = {
 /** Chrome around the card box: header, borders, hints, message. */
 const CHROME_ROWS = 7
 
+/** Stands in for the card's `***`, matching how render.ts draws a thematic break. */
+function separatorLine(width: number): RenderedLine {
+  return { spans: [{ text: '─'.repeat(Math.max(1, Math.min(width, 40))), dim: true }] }
+}
+
 function attachmentLines(item: QueueItem, displayablePngs: Set<string>): RenderedLine[] {
   if (item.card.images.length === 0) return []
   const lines: RenderedLine[] = [{ spans: [] }]
@@ -112,11 +117,25 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 
   const item = queue[index]
 
-  const lines = useMemo(() => {
+  const frontLines = useMemo(
+    () => (item ? renderMarkdown(item.card.frontBody, bodyWidth) : []),
+    [item, bodyWidth],
+  )
+
+  const backLines = useMemo(() => {
     if (!item) return []
-    const body = item.card.bodyMarkdown.trim() === '' ? '_(no body)_' : item.card.bodyMarkdown
-    return [...renderMarkdown(body, bodyWidth), ...attachmentLines(item, displayablePngs)]
+    const back = item.card.back.trim() === '' ? '_(no body)_' : item.card.back
+    return [...renderMarkdown(back, bodyWidth), ...attachmentLines(item, displayablePngs)]
   }, [item, bodyWidth, displayablePngs])
+
+  /* The front is the `##` heading plus everything above the `***`, so a card may ask
+     its question in more than a heading. Unrevealed, only that half is on screen;
+     revealed, the two scroll as one list with a rule where the separator was. */
+  const lines = useMemo(() => {
+    if (!revealed) return frontLines
+    if (frontLines.length === 0) return backLines
+    return [...frontLines, { spans: [] }, separatorLine(bodyWidth), { spans: [] }, ...backLines]
+  }, [revealed, frontLines, backLines, bodyWidth])
 
   const maxScroll = Math.max(0, lines.length - viewportHeight)
   const previewable = useMemo(
@@ -247,6 +266,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     if (input === ' ' || key.return) {
       if (!revealed) {
         setRevealed(true)
+        setScroll(0)
         setMessage('grade: 1 again · 2 hard · 3 good · 4 easy')
       }
       return
@@ -371,24 +391,21 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         minHeight={viewportHeight + 2}
       >
         <Text bold>{item.card.title}</Text>
-        {revealed ? (
-          <Box flexDirection="column" marginTop={1}>
-            {visible.map((line, i) => (
-              <MarkdownLine key={scroll + i} line={line} />
-            ))}
-            {maxScroll > 0 && (
-              <Text dimColor>
-                — {scroll + visible.length}/{lines.length} lines (j/k to scroll) —
-              </Text>
-            )}
-          </Box>
-        ) : (
-          <Box marginTop={1}>
+        <Box flexDirection="column" marginTop={1}>
+          {visible.map((line, i) => (
+            <MarkdownLine key={scroll + i} line={line} />
+          ))}
+          {maxScroll > 0 && (
+            <Text dimColor>
+              — {scroll + visible.length}/{lines.length} lines (j/k to scroll) —
+            </Text>
+          )}
+          {!revealed && (
             <Text dimColor italic>
               [press space or enter to reveal]
             </Text>
-          </Box>
-        )}
+          )}
+        </Box>
       </Box>
       {searching ? (
         <Text color="yellow">/{search}▏</Text>

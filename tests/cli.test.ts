@@ -45,6 +45,7 @@ function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}
     command,
     sourceDir: fixtures,
     statePath: path.join(dir, 'review-state.json'),
+    untyped: false,
     dueOnly: false,
     newOnly: false,
     images: false,
@@ -75,7 +76,7 @@ describe('list command', () => {
     await runList(options('list'))
     expect(stdout).toContain('with-frontmatter')
     expect(stdout).toContain('Sample Deck')
-    expect(stdout).toContain('4 decks, 6 cards')
+    expect(stdout).toContain('5 decks, 8 cards')
     expect(stderr).toContain('empty.md')
     expect(stderr).toContain('no-cards.md')
   })
@@ -89,8 +90,8 @@ describe('list command', () => {
 describe('stats command', () => {
   it('reports totals, due/new/suspended counts and warning count', async () => {
     await runStats(options('stats'))
-    expect(stdout).toContain('total cards:     6')
-    expect(stdout).toContain('new cards:       6')
+    expect(stdout).toContain('total cards:     8')
+    expect(stdout).toContain('new cards:       8')
     expect(stdout).toContain('due cards:       0')
     expect(stdout).toContain('suspended cards: 0')
     expect(stdout).toContain('parse warnings:  2')
@@ -186,5 +187,16 @@ describe('filterCards', () => {
     const vocab = filterCards(parsed.cards, { type: 'vocabulary' })
     expect(vocab).toHaveLength(1)
     expect(vocab[0]?.title).toBe('coax')
+  })
+
+  it('filters an unrecognized type the same way, since the format defines no set', async () => {
+    const parsed = await parseDirectory(fixtures)
+    expect(filterCards(parsed.cards, { type: 'grammar' })).toHaveLength(2)
+  })
+
+  it('selects files that declared no type with --untyped, not with a magic value', async () => {
+    const parsed = await parseDirectory(fixtures)
+    const untyped = filterCards(parsed.cards, { untyped: true })
+    expect(untyped.map((card) => card.deckId)).toEqual(['no-frontmatter', 'no-frontmatter'])
   })
 })

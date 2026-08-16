@@ -3,9 +3,16 @@
 Terminal UI for reviewing markdown flashcards from `~/notes/flashcards`.
 
 Each `##` heading in a markdown file is one card: the heading is the question,
-everything until the next `##` is the answer. YAML frontmatter
-(`type: content|film|vocabulary`) is optional. Review state is kept outside
-the notes folder; markdown files are never written to.
+everything until the next `##` is the answer, and a `***` splits a longer front
+from the back. Review state is kept outside the notes folder; markdown files are
+never written to.
+
+The deck format is [Flashcard Markdown](https://github.com/shbernal/flashcard-md-spec)
+1.0, which `flashcards-tui` implements as a **consumer** — it parses anything the
+format calls valid and never refuses a file over one bad card. Its conformance
+corpus runs in this project's test suite. [`docs/format.md`](docs/format.md)
+covers what the format leaves to an implementation, and the card-identity scheme
+that decides when an edit costs you review history.
 
 ## Usage
 
@@ -47,7 +54,8 @@ lockfile and update-check lines.
 
 ```text
 --deck <slug-or-path>   only decks matching slug or source path (skips the picker)
---type <type>           content | film | vocabulary | unknown
+--type <type>           frontmatter type, matched verbatim (the format defines no set)
+--untyped               only cards whose file declares no type
 --due                   only due cards
 --new                   only new cards
 --limit <n>             cap queue size (review defaults to dailyLimit, 50)
@@ -125,7 +133,10 @@ pnpm format      # oxfmt (use --check in CI via pnpm format:check)
 uses `tsconfig.build.json`, which narrows the input to `src` so only library
 code is emitted to `dist`.
 
-Layout: `src/parser.ts` (markdown → cards), `src/render.ts` (markdown →
+Layout: `src/deck.ts` (Flashcard Markdown → parsed deck; the conformance
+surface, pure and free of I/O), `src/tags.ts` and `src/diagnostics.ts` (the
+format's tag grammar and its closed code list), `src/parser.ts` (files → cards:
+ids, resolved image paths), `src/render.ts` (markdown →
 styled terminal lines), `src/scheduler.ts` (grading), `src/state.ts` (JSON
 store), `src/transfer.ts` (import/export merge), `src/queue.ts` (due/new
 ordering and deck summaries), `src/images.ts` (kitty graphics), `src/cli.ts`

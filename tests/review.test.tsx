@@ -16,11 +16,14 @@ function makeCard(id: string, title: string, body: string): Flashcard {
     deckTitle: 'Algebra',
     sourcePath: '/notes/algebra.md',
     sourceMtimeMs: 0,
+    sourceLine: 1,
     type: 'content',
     title,
-    bodyMarkdown: body,
+    frontBody: '',
+    back: body,
     plainText: body,
     images: [],
+    cardTags: [],
     tags: [],
   }
 }
@@ -73,7 +76,7 @@ const PNG = '/notes/attachments/diagram.png'
 function openWithImage(tmux = false) {
   const withImage: Flashcard = {
     ...makeCard('a', 'What is a group?', 'A set with an associative operation.'),
-    images: [{ alt: 'Cayley table', path: PNG }],
+    images: [{ alt: 'Cayley table', src: PNG, path: PNG }],
   }
   return open(undefined, {
     cards: [withImage, cards[1] as Flashcard],
@@ -100,6 +103,25 @@ describe('ReviewApp', () => {
     const frame = ui.frame()
     expect(frame).toContain('A set with an associative operation.')
     expect(frame).toContain('grade: 1 again · 2 hard · 3 good · 4 easy')
+  })
+
+  it('shows front content below the heading, and still holds the back back', async () => {
+    // The front is the `##` heading plus everything above the `***`, so a card can
+    // ask its question in more than a heading. Showing the back with it would defeat
+    // the session.
+    const rich: Flashcard = {
+      ...(cards[0] as Flashcard),
+      frontBody: 'Give the definition, then an example.',
+    }
+    const ui = await open(undefined, { cards: [rich] })
+
+    expect(ui.frame()).toContain('Give the definition, then an example.')
+    expect(ui.frame()).not.toContain('associative')
+
+    await ui.press(KEY.space)
+    const frame = ui.frame()
+    expect(frame).toContain('Give the definition, then an example.')
+    expect(frame).toContain('A set with an associative operation.')
   })
 
   it('ignores grade keys until the card is revealed', async () => {

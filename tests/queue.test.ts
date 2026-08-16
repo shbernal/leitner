@@ -12,11 +12,14 @@ function makeCard(id: string): Flashcard {
     deckTitle: 'Deck',
     sourcePath: '/tmp/deck.md',
     sourceMtimeMs: 0,
+    sourceLine: 1,
     type: 'content',
     title: id,
-    bodyMarkdown: '- fact',
+    frontBody: '',
+    back: '- fact',
     plainText: 'fact',
     images: [],
+    cardTags: [],
     tags: [],
   }
 }

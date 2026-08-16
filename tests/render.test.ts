@@ -104,4 +104,17 @@ describe('renderMarkdown', () => {
   it('keeps interior blank lines as spacing', () => {
     expect(plain(renderMarkdown('a\n\nb', 40))).toEqual(['a', '', 'b'])
   })
+
+  it('hides a tags-only line but keeps a tag written inside a sentence', () => {
+    // The rule is line-based, so a card's trailing tag line disappears while prose
+    // reads as written — which is what the same file looks like in Obsidian.
+    expect(plain(renderMarkdown('- a fact\n\n#french #grammar/mood', 40))).toEqual(['• a fact'])
+    expect(plain(renderMarkdown('The #verbs group takes être.', 40))).toEqual([
+      'The #verbs group takes être.',
+    ])
+  })
+
+  it('leaves a # inside a code fence alone', () => {
+    expect(plain(renderMarkdown('```sh\n#!/bin/sh\n```', 40))).toEqual(['  sh', '  #!/bin/sh'])
+  })
 })

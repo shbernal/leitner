@@ -14,7 +14,7 @@ import {
   toBundle,
   type MergeStrategy,
 } from './transfer.js'
-import type { CardType, Flashcard, ParseResult } from './types.js'
+import type { Flashcard, ParseResult } from './types.js'
 
 const USAGE = `Usage: flashcards-tui <command> [source-dir] [options]
 
@@ -27,7 +27,8 @@ Commands:
 
 Options:
   --deck <slug-or-path>   Only include decks matching slug or source path
-  --type <type>           Only include content|film|vocabulary|unknown cards
+  --type <type>           Only include cards whose frontmatter type is exactly this
+  --untyped               Only include cards whose file declares no type
   --due                   Only due cards
   --new                   Only new (never reviewed) cards
   --limit <n>             Cap the review queue size
@@ -51,7 +52,10 @@ export type CliOptions = {
   sourceDir: string
   statePath: string
   deck?: string
-  type?: CardType
+  /** Matched against the frontmatter `type` verbatim; the format defines no set. */
+  type?: string
+  /** Absence is not a value, so "declared nothing" gets a flag of its own. */
+  untyped: boolean
   dueOnly: boolean
   newOnly: boolean
   limit?: number
@@ -71,6 +75,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     options: {
       deck: { type: 'string' },
       type: { type: 'string' },
+      untyped: { type: 'boolean', default: false },
       due: { type: 'boolean', default: false },
       new: { type: 'boolean', default: false },
       limit: { type: 'string' },
@@ -92,8 +97,10 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   if (!['review', 'list', 'stats', 'export', 'import'].includes(command)) {
     throw new Error(`unknown command: ${command}\n\n${USAGE}`)
   }
-  if (values.type && !['content', 'film', 'vocabulary', 'unknown'].includes(values.type)) {
-    throw new Error(`invalid --type: ${values.type}`)
+  // `type` is a user extension the format deliberately leaves undefined, so there is
+  // no closed set to validate against here — only the file's own spelling.
+  if (values.type !== undefined && values.untyped) {
+    throw new Error('--type and --untyped select disjoint sets; pass one or the other')
   }
   if (values.merge !== undefined && !isMergeStrategy(values.merge)) {
     throw new Error(`invalid --merge: ${values.merge} (expected newer, theirs, or ours)`)
@@ -115,7 +122,8 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     ),
     statePath: values.state ? expandHome(values.state) : defaultStatePath(),
     deck: values.deck ?? config.defaultDeckFilter ?? undefined,
-    type: values.type as CardType | undefined,
+    type: values.type,
+    untyped: values.untyped,
     dueOnly: values.due,
     newOnly: values.new,
     limit: limit ?? (command === 'review' ? config.dailyLimit : undefined),
@@ -130,10 +138,11 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
 
 export function filterCards(
   cards: Flashcard[],
-  options: Pick<CliOptions, 'deck' | 'type'>,
+  options: Partial<Pick<CliOptions, 'deck' | 'type' | 'untyped'>>,
 ): Flashcard[] {
   return cards.filter((card) => {
-    if (options.type && card.type !== options.type) return false
+    if (options.type !== undefined && card.type !== options.type) return false
+    if (options.untyped && card.type !== undefined) return false
     if (options.deck && card.deckId !== options.deck && !card.sourcePath.includes(options.deck)) {
       return false
     }
@@ -143,7 +152,9 @@ export function filterCards(
 
 function printWarnings(parsed: ParseResult): void {
   for (const warning of parsed.warnings) {
-    process.stderr.write(`warning: ${warning.sourcePath}: ${warning.message}\n`)
+    // The code names the conformance rule; the message is ours to word.
+    const code = warning.code === null ? '' : ` [${warning.code}]`
+    process.stderr.write(`warning:${code} ${warning.sourcePath}: ${warning.message}\n`)
   }
 }
 
@@ -163,7 +174,7 @@ export async function runList(options: CliOptions): Promise<void> {
   for (const deck of decks) {
     const count = String(counts.get(deck.id) ?? 0).padStart(5)
     process.stdout.write(
-      `${deck.id.padEnd(idWidth)}  ${count}  ${deck.type.padEnd(10)}  ${deck.title}\n`,
+      `${deck.id.padEnd(idWidth)}  ${count}  ${(deck.type ?? '—').padEnd(10)}  ${deck.title}\n`,
     )
   }
   process.stdout.write(`\n${decks.length} decks, ${cards.length} cards\n`)
@@ -271,7 +282,7 @@ export async function runReview(options: CliOptions): Promise<void> {
 
   // The deck filter is applied inside the TUI so the picker can still show
   // every deck; only the type filter narrows the card pool up front.
-  const cards = filterCards(parsed.cards, { type: options.type })
+  const cards = filterCards(parsed.cards, { type: options.type, untyped: options.untyped })
   const state = await loadState(options.statePath)
 
   // Cheap pre-check so `review` exits cleanly on an exhausted collection
@@ -300,6 +311,16 @@ export async function runReview(options: CliOptions): Promise<void> {
           if (await isDisplayablePng(imagePath)) displayablePngs.add(imagePath)
         }),
       )
+      /* §7: previews were asked for, so an image that cannot be displayed is a
+         resolution failure and gets named. It still shows as an attachment line, so
+         nothing is lost — but the reason it is not pixels would otherwise be silent. */
+      for (const imagePath of candidates) {
+        if (displayablePngs.has(imagePath)) continue
+        process.stderr.write(
+          `warning: [unresolved-image] ${imagePath}: not a displayable PNG; ` +
+            'showing it as an attachment line instead\n',
+        )
+      }
     }
   }
 
