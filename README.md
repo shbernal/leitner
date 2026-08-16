@@ -79,6 +79,7 @@ j/k, arrows  move selection / scroll body
 /            filter decks (picker) · search cards (review)
 s            suspend card
 u            undo last grade
+e            edit card in $EDITOR
 i            image preview (needs --images)
 esc          clear an active search
 q            quit
@@ -87,6 +88,24 @@ q            quit
 The session runs on the terminal's alternate screen, like `vim` or `less`, so
 it leaves the scrollback untouched. The number of cards reviewed is printed on
 the normal screen once it exits.
+
+### Editing a card
+
+`e` hands the terminal to `$VISUAL`, `$EDITOR`, or `vi`, opened on the card's
+`##` heading in its source file. Editors whose line syntax is known get taken
+there directly (`+N` for the vi and emacs families, `path:line` for helix,
+`--goto` for VS Code); anything else opens at the top of the file. Editors that
+detach by default are launched with `--wait` so the session waits for the file
+rather than reparsing it unedited.
+
+On return the file is reread and the session picks up where it left off, with
+the card's new text. Because a card's id hashes its heading text and position
+(so ids survive across machines without an index file), renaming a `##`
+heading or inserting a card above one would otherwise orphan the review
+history. The reread pairs the cards before and after the edit and carries the
+records across; when two or more headings were renamed in one pass the pairing
+is ambiguous, so those cards are left to come back as new rather than risk
+attaching history to the wrong card.
 
 Scheduling is a minimal SM-2-style algorithm: `again` comes back in 10
 minutes and counts a lapse, `hard` grows the interval slowly and lowers ease,
@@ -139,5 +158,6 @@ format's tag grammar and its closed code list), `src/parser.ts` (files → cards
 ids, resolved image paths), `src/render.ts` (markdown →
 styled terminal lines), `src/scheduler.ts` (grading), `src/state.ts` (JSON
 store), `src/transfer.ts` (import/export merge), `src/queue.ts` (due/new
-ordering and deck summaries), `src/images.ts` (kitty graphics), `src/cli.ts`
-(commands), `src/tui/` (Ink deck picker and review screen).
+ordering and deck summaries), `src/images.ts` (kitty graphics), `src/editor.ts`
+(`$EDITOR` invocation), `src/edit.ts` (carrying records across re-ids),
+`src/cli.ts` (commands), `src/tui/` (Ink deck picker and review screen).

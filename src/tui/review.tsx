@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
+import { applyRecordMoves, reconcileCardIds } from '../edit.js'
+import { editorFromEnv, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
+import { parseFile } from '../parser.js'
 import { buildQueue, summarizeDecks, type QueueItem, type QueueOptions } from '../queue.js'
 import { renderMarkdown, type RenderedLine } from '../render.js'
 import { applyGrade, newRecord } from '../scheduler.js'
@@ -14,12 +17,16 @@ export type ReviewSessionOptions = {
   decks: Deck[]
   state: ReviewState
   statePath: string
+  /** The collection root, needed to re-derive card ids after an edit. */
+  rootDir: string
   queueOptions: QueueOptions
   /** When set, the deck picker is skipped. */
   deckFilter?: string | undefined
   images: ImageSupport
   /** Absolute paths verified as displayable PNGs. */
   displayablePngs: Set<string>
+  /** Overridable so tests can drive the edit flow without spawning $EDITOR. */
+  openEditor?: EditorRunner
 }
 
 type UndoEntry = {
@@ -75,12 +82,15 @@ function matches(item: QueueItem, needle: string): boolean {
 }
 
 export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
-  const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
-  const { exit, waitUntilRenderFlush } = useApp()
+  const { cards, decks, state, statePath, rootDir, queueOptions, images, displayablePngs } = options
+  const openEditor = options.openEditor ?? runEditor
+  const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
 
   // With --deck the picker is skipped entirely, so the session starts picked.
   const [picked, setPicked] = useState(options.deckFilter !== undefined)
+  // Editing rewrites the source file, so the card pool outlives the prop.
+  const [allCards, setAllCards] = useState<Flashcard[]>(cards)
   const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [fullQueue, setFullQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [index, setIndex] = useState(0)
@@ -93,17 +103,18 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [searching, setSearching] = useState(false)
   const [search, setSearch] = useState('')
   const [imageMode, setImageMode] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   // Re-renders on SIGWINCH, so the viewport follows the terminal as it resizes.
   const { rows, columns } = useWindowSize()
   const viewportHeight = Math.max(5, rows - CHROME_ROWS)
   const bodyWidth = Math.max(20, columns - 4)
 
-  const summaries = useMemo(() => summarizeDecks(cards, state), [cards, state])
+  const summaries = useMemo(() => summarizeDecks(allCards, state), [allCards, state])
 
   const selectDeck = (deckIds: string[]) => {
     const scope = new Set(deckIds)
-    const scoped = cards.filter((card) => scope.has(card.deckId))
+    const scoped = allCards.filter((card) => scope.has(card.deckId))
     const built = buildQueue(scoped, state, queueOptions)
     setPicked(true)
     setQueue(built)
@@ -193,7 +204,81 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     setUndoStack((stack) => [...stack, { cardId, previousRecord, action }])
   }
 
+  /**
+   * Hand the terminal to $EDITOR, then reread the file it touched. The card
+   * pool, both queues and the undo stack are patched from that one file rather
+   * than rebuilt, so the session keeps its place and its history.
+   */
+  const edit = async (target: QueueItem) => {
+    const { sourcePath } = target.card
+    setEditing(true)
+    try {
+      await suspendTerminal(() => openEditor(sourcePath, target.card.sourceLine))
+    } catch (error) {
+      setEditing(false)
+      setMessage(`edit failed: ${String(error)}`)
+      return
+    }
+
+    let after: Flashcard[]
+    try {
+      after = (await parseFile(sourcePath, rootDir)).cards
+    } catch (error) {
+      setEditing(false)
+      setMessage(`edited, but could not reread ${sourcePath}: ${String(error)}`)
+      return
+    }
+
+    const before = allCards.filter((card) => card.sourcePath === sourcePath)
+    const moves = reconcileCardIds(before, after)
+    const carried = applyRecordMoves(state, moves, after)
+
+    // Splice the file's cards back where they were so deck order survives.
+    const next: Flashcard[] = []
+    let spliced = false
+    for (const card of allCards) {
+      if (card.sourcePath !== sourcePath) next.push(card)
+      else if (!spliced) {
+        next.push(...after)
+        spliced = true
+      }
+    }
+    setAllCards(next)
+
+    const remap = new Map(moves.map((move) => [move.from, move.to]))
+    const byId = new Map(after.map((card) => [card.id, card]))
+    // Cards deleted in the editor drop out of the queue rather than linger.
+    const restock = (items: QueueItem[]): QueueItem[] =>
+      items.flatMap((entry) => {
+        if (entry.card.sourcePath !== sourcePath) return [entry]
+        const card = byId.get(remap.get(entry.card.id) ?? entry.card.id)
+        return card ? [{ ...entry, card }] : []
+      })
+
+    const nextQueue = restock(queue)
+    const targetId = remap.get(target.card.id) ?? target.card.id
+    const position = nextQueue.findIndex((entry) => entry.card.id === targetId)
+
+    setQueue(nextQueue)
+    setFullQueue(restock(fullQueue))
+    setUndoStack((stack) =>
+      stack.map((entry) => ({ ...entry, cardId: remap.get(entry.cardId) ?? entry.cardId })),
+    )
+    setIndex(position >= 0 ? position : Math.min(index, Math.max(0, nextQueue.length - 1)))
+    setScroll(0)
+    setDone(nextQueue.length === 0)
+    setEditing(false)
+
+    if (carried > 0) persist('edit')
+    const gone = position < 0 ? ' · that card is gone, showing the next one' : ''
+    const kept =
+      carried > 0 ? ` · ${carried} record${carried === 1 ? '' : 's'} followed the edit` : ''
+    setMessage(`edited ${sourcePath}${kept}${gone}`)
+  }
+
   useInput((input, key) => {
+    if (editing) return
+
     if (imageMode) {
       setImageMode(false)
       setMessage('closed image preview')
@@ -269,6 +354,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         setScroll(0)
         setMessage('grade: 1 again · 2 hard · 3 good · 4 easy')
       }
+      return
+    }
+    if (input === 'e') {
+      setMessage(`opening ${editorFromEnv()}…`)
+      void edit(item)
       return
     }
     if (input === 'i') {
@@ -411,7 +501,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         <Text color="yellow">/{search}▏</Text>
       ) : (
         <Text dimColor>
-          space reveal · 1-4 grade · j/k scroll · s suspend · u undo · / search
+          space reveal · 1-4 grade · j/k scroll · s suspend · u undo · e edit · / search
           {previewable.length > 0 ? ' · i image' : ''} · q quit
         </Text>
       )}

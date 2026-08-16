@@ -26,7 +26,8 @@ the disagreement is a bug here.
 It is not a producer: it never writes a deck. Markdown files are **only ever
 read**. Review state lives in
 `~/.local/share/flashcards-tui/review-state.json`, and nothing is written back
-into the notes tree.
+into the notes tree. The one exception is `e` in a review session, which hands
+the file to `$EDITOR` — your editor writes it, not this program.
 
 Diagnostics are printed to stderr with their code in brackets:
 
@@ -121,6 +122,10 @@ card's position:
 | Inserting or deleting a card above it | **no** — every later card shifts |
 | Reordering cards | **no** |
 | Renaming or moving the deck file | **no** — the whole deck resets |
+
+Editing from inside a review session (`e`) is the exception: it pairs the cards
+before and after the edit and carries the records across, so a heading rename
+made there keeps its history. A rename made outside the session does not.
 
 The orphaned records are not cleaned up automatically; `export --prune` drops
 records whose cards no longer exist.

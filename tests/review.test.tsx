@@ -2,8 +2,10 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import React from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { EditorRunner } from '../src/editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence } from '../src/images.js'
+import { parseFile } from '../src/parser.js'
 import { emptyState, type ReviewState } from '../src/state.js'
 import { ReviewApp } from '../src/tui/review.js'
 import type { Flashcard, ReviewRecord } from '../src/types.js'
@@ -59,6 +61,7 @@ async function open(size?: { columns?: number; rows?: number }, overrides: Overr
       decks={[]}
       state={state}
       statePath={statePath}
+      rootDir="/notes"
       queueOptions={{}}
       deckFilter="algebra"
       images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}
@@ -360,5 +363,139 @@ describe('ReviewApp', () => {
     const ui = await openWithImage(true)
     await ui.press('i')
     expect(ui.output()).toContain(buildKittyImageSequence(PNG, { cols: 96, rows: 36, tmux: true }))
+  })
+})
+
+const DECK = `---
+type: content
+---
+
+# Algebra
+
+## What is a group?
+A set with an associative operation.
+
+## What is a ring?
+A group with a second operation.
+`
+
+describe('ReviewApp editing', () => {
+  let deckPath: string
+
+  /** An `$EDITOR` stand-in that rewrites the file it is handed. */
+  function rewriter(rewrite: (current: string) => string): EditorRunner {
+    return async (file) => {
+      await fs.writeFile(file, rewrite(await fs.readFile(file, 'utf8')), 'utf8')
+    }
+  }
+
+  /** Render against a real file on disk, with `openEditor` standing in for $EDITOR. */
+  async function openDeck(runner: EditorRunner) {
+    deckPath = path.join(dir, 'algebra.md')
+    await fs.writeFile(deckPath, DECK, 'utf8')
+    const parsed = await parseFile(deckPath, dir)
+
+    const openEditor = vi.fn<EditorRunner>(runner)
+    const rendered = await renderTui(
+      <ReviewApp
+        cards={parsed.cards}
+        decks={parsed.deck ? [parsed.deck] : []}
+        state={state}
+        statePath={statePath}
+        rootDir={dir}
+        queueOptions={{}}
+        deckFilter={parsed.deck?.id}
+        images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}
+        displayablePngs={new Set()}
+        openEditor={openEditor}
+      />,
+    )
+    ui = rendered
+    return { ui: rendered, openEditor, cards: parsed.cards }
+  }
+
+  /** The edit runs off the keypress, so give its file I/O a chance to land. */
+  function settled(check: () => void) {
+    return vi.waitFor(check, { timeout: 2000, interval: 20 })
+  }
+
+  it('opens the editor on the current card and shows the edited body', async () => {
+    const { ui, openEditor, cards } = await openDeck(
+      rewriter((current) =>
+        current.replace('A set with an associative operation.', 'A set plus an associative binop.'),
+      ),
+    )
+    await ui.press(KEY.space)
+    await ui.press('e')
+
+    expect(openEditor).toHaveBeenCalledWith(deckPath, cards[0]?.sourceLine)
+    await settled(() => {
+      expect(ui.frame()).toContain('A set plus an associative binop.')
+    })
+    expect(ui.frame()).toContain('card 1/2')
+  })
+
+  it('keeps the review record when the edit renames the heading', async () => {
+    const seeded: ReviewRecord = {
+      cardId: 'placeholder',
+      sourcePath: '',
+      sourceMtimeMs: 0,
+      suspended: false,
+      dueAt: '2020-01-01T00:00:00.000Z',
+      intervalDays: 4,
+      ease: 2.1,
+      reps: 3,
+      lapses: 1,
+    }
+
+    const { ui, cards } = await openDeck(
+      rewriter((current) => current.replace('## What is a group?', '## What is a group, really?')),
+    )
+    const originalId = cards[0]?.id as string
+    state.records[originalId] = { ...seeded, cardId: originalId, sourcePath: deckPath }
+
+    await ui.press('e')
+    await settled(() => {
+      expect(ui.frame()).toContain('What is a group, really?')
+    })
+
+    const renamed = (await parseFile(deckPath, dir)).cards[0]?.id as string
+    expect(renamed).not.toBe(originalId)
+    expect(state.records[originalId]).toBeUndefined()
+    expect(state.records[renamed]).toMatchObject({ cardId: renamed, reps: 3, ease: 2.1 })
+    expect(ui.frame()).toContain('1 record followed the edit')
+
+    const written = JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState
+    expect(written.records[renamed]?.reps).toBe(3)
+  })
+
+  it('drops a card deleted in the editor and moves on', async () => {
+    const { ui } = await openDeck(
+      rewriter((current) =>
+        current.replace('## What is a group?\nA set with an associative operation.\n\n', ''),
+      ),
+    )
+    await ui.press('e')
+
+    await settled(() => {
+      expect(ui.frame()).toContain('that card is gone')
+    })
+    const frame = ui.frame()
+    expect(frame).toContain('card 1/1')
+    expect(frame).toContain('What is a ring?')
+  })
+
+  it('reports an editor that would not launch and stays on the card', async () => {
+    const { ui } = await openDeck(() =>
+      Promise.reject(new Error('editor not found: nope (set $EDITOR)')),
+    )
+    await ui.press('e')
+    await settled(() => {
+      expect(ui.frame()).toContain('edit failed')
+    })
+    const frame = ui.frame()
+    expect(frame).toContain('editor not found: nope')
+    expect(frame).toContain('card 1/2')
+    expect(frame).toContain('What is a group?')
   })
 })

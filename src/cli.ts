@@ -42,7 +42,7 @@ Options:
 
 Review keys:
   space/enter reveal · 1-4 grade · j/k scroll · s suspend · u undo
-  / search · i image preview · q quit
+  e edit in $EDITOR · / search · i image preview · q quit
 `
 
 export type Command = 'review' | 'list' | 'stats' | 'export' | 'import'
@@ -331,6 +331,7 @@ export async function runReview(options: CliOptions): Promise<void> {
     decks: parsed.decks,
     state,
     statePath: options.statePath,
+    rootDir: options.sourceDir,
     queueOptions: { dueOnly: options.dueOnly, newOnly: options.newOnly, limit: options.limit },
     deckFilter: options.deck,
     images: options.images
