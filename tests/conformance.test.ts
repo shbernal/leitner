@@ -8,7 +8,7 @@ import { parseFile } from '../src/parser.js'
 
 /*
  * The Flashcard Markdown conformance corpus, run as this project's own suite.
- * `flashcards-tui` conforms as a **consumer** (§3.1): it MUST parse anything canonical
+ * `leitner` conforms as a **consumer** (§3.1): it MUST parse anything canonical
  * or valid correctly, and it MUST NOT refuse a file because one card in it is
  * malformed.
  *

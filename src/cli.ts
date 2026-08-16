@@ -16,7 +16,7 @@ import {
 } from './transfer.js'
 import type { Flashcard, ParseResult } from './types.js'
 
-const USAGE = `Usage: flashcards-tui <command> [source-dir] [options]
+const USAGE = `Usage: leitner <command> [source-dir] [options]
 
 Commands:
   review [dir]     Interactive terminal review session
@@ -32,7 +32,7 @@ Options:
   --due                   Only due cards
   --new                   Only new (never reviewed) cards
   --limit <n>             Cap the review queue size
-  --state <path>          Review state file (default: ~/.local/share/flashcards-tui/review-state.json)
+  --state <path>          Review state file (default: ~/.local/share/leitner/review-state.json)
   --images                Enable inline image previews (kitty graphics protocol)
   --out <path>            export: write here instead of stdout
   --prune                 export: drop records whose cards no longer exist
@@ -110,7 +110,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     throw new Error(`invalid --limit: ${values.limit}`)
   }
   if (command === 'import' && positionals[1] === undefined) {
-    throw new Error('import needs a bundle path: flashcards-tui import <file>')
+    throw new Error('import needs a bundle path: leitner import <file>')
   }
 
   const config = await loadConfig()

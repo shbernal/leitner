@@ -5,7 +5,7 @@ import { main } from './cli.js'
 // starts the process in the repo rather than where the command was typed.
 // Restore the caller's cwd so relative source-dir arguments mean what they look
 // like they mean.
-const callerCwd = process.env['FLASHCARDS_TUI_CALLER_CWD']
+const callerCwd = process.env['LEITNER_CALLER_CWD']
 if (callerCwd && callerCwd !== process.cwd()) {
   process.chdir(callerCwd)
 }

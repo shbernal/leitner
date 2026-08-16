@@ -1,6 +1,6 @@
 # Markdown flashcard format
 
-`flashcards-tui` reads **Flashcard Markdown 1.0**. The format is specified in its
+`leitner` reads **Flashcard Markdown 1.0**. The format is specified in its
 own repository, and this document does not restate it:
 
 - the specification: [`SPEC.md`](https://github.com/shbernal/flashcard-md-spec/blob/master/SPEC.md)
@@ -17,7 +17,7 @@ the disagreement is a bug here.
 
 ## Conformance class
 
-`flashcards-tui` is a **consumer** (§3.1). That means:
+`leitner` is a **consumer** (§3.1). That means:
 
 - it MUST parse anything canonical or valid, correctly — not merely tolerate it;
 - it MUST NOT refuse to load a file because one card in it is malformed;
@@ -25,7 +25,7 @@ the disagreement is a bug here.
 
 It is not a producer: it never writes a deck. Markdown files are **only ever
 read**. Review state lives in
-`~/.local/share/flashcards-tui/review-state.json`, and nothing is written back
+`~/.local/share/leitner/review-state.json`, and nothing is written back
 into the notes tree. The one exception is `e` in a review session, which hands
 the file to `$EDITOR` — your editor writes it, not this program.
 
@@ -44,7 +44,7 @@ them.
 The format describes one file. Finding the files is this project's business.
 
 - Cards come from a source directory (`sourceDir` in
-  `~/.config/flashcards-tui/config.json`, default `~/notes/flashcards`, or a
+  `~/.config/leitner/config.json`, default `~/notes/flashcards`, or a
   positional `dir` argument).
 - Every `**/*.md` under it is a candidate deck, recursively.
 - Dotfiles and dot-directories are skipped. That is what lets `.images/` sit next
@@ -143,7 +143,7 @@ major version (§9), without exception.
 
 ## Degenerate cases
 
-Every one of these is a warning surfaced by `flashcards-tui stats`, never a hard
+Every one of these is a warning surfaced by `leitner stats`, never a hard
 failure. One bad file does not stop the rest of the directory parsing.
 
 | Input | Result |

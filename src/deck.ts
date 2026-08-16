@@ -1,7 +1,7 @@
 /**
  * Flashcard Markdown → the shape the specification talks about.
  *
- * This module is the whole of `flashcards-tui`'s conformance surface. It is pure —
+ * This module is the whole of `leitner`'s conformance surface. It is pure —
  * a string in, a parsed deck out — so the conformance corpus can be run against it
  * directly, and so nothing above it has to know which rules came from the spec.
  * `parser.ts` layers the I/O concerns on top: ids, resolved image paths, mtimes.

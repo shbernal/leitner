@@ -1,5 +1,5 @@
 {
-  "name": "flashcards-tui",
+  "name": "leitner",
   "version": "0.1.0",
   "description": "Terminal UI for reviewing markdown flashcards",
   "type": "module",
@@ -8,14 +8,14 @@
     "node": ">=22"
   },
   "bin": {
-    "flashcards-tui": "dist/index.js"
+    "leitner": "dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "flashcards-tui-local": "env FLASHCARDS_TUI_CALLER_CWD=\"$INIT_CWD\" ./bin/flashcards-tui",
+    "leitner-local": "env LEITNER_CALLER_CWD=\"$INIT_CWD\" ./bin/leitner",
     "test": "vitest run",
     "lint": "oxlint src tests",
     "format": "oxfmt src tests",

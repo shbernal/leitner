@@ -22,7 +22,7 @@ let stdout: string
 let stderr: string
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'flashcards-tui-cli-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'leitner-cli-'))
   stdout = ''
   stderr = ''
   vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {

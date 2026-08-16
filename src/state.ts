@@ -10,7 +10,7 @@ export type ReviewState = {
 
 export function defaultStatePath(): string {
   const dataHome = process.env['XDG_DATA_HOME'] ?? path.join(os.homedir(), '.local', 'share')
-  return path.join(dataHome, 'flashcards-tui', 'review-state.json')
+  return path.join(dataHome, 'leitner', 'review-state.json')
 }
 
 export function emptyState(): ReviewState {

@@ -8,7 +8,7 @@ import type { ReviewRecord } from '../src/types.js'
 let dir: string
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'flashcards-tui-test-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'leitner-test-'))
 })
 
 afterEach(async () => {

@@ -41,7 +41,7 @@ let state: ReviewState
 let ui: TuiHarness | undefined
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'flashcards-tui-review-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'leitner-review-'))
   statePath = path.join(dir, 'state.json')
   state = emptyState()
 })

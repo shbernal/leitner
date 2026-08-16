@@ -3,7 +3,7 @@
  * a code that is not here is not a conformance signal, and adding one is a change
  * made in the spec repository, not here.
  *
- * Severity is a function of conformance class, not of the code. `flashcards-tui`
+ * Severity is a function of conformance class, not of the code. `leitner`
  * conforms as a **consumer** (§3.1), so every one of these is a warning — it never
  * refuses a file because one card in it is malformed.
  */

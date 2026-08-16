@@ -1,6 +1,10 @@
-# flashcards-tui
+# leitner
 
 Terminal UI for reviewing markdown flashcards from `~/notes/flashcards`.
+
+Named after the Leitner system (Sebastian Leitner, 1972): boxes of cards that
+move forward when you get them right and back when you don't — the canonical
+spaced-repetition method this scheduler is a variant of.
 
 Each `##` heading in a markdown file is one card: the heading is the question,
 everything until the next `##` is the answer, and a `***` splits a longer front
@@ -8,7 +12,7 @@ from the back. Review state is kept outside the notes folder; markdown files are
 never written to.
 
 The deck format is [Flashcard Markdown](https://github.com/shbernal/flashcard-md-spec)
-1.0, which `flashcards-tui` implements as a **consumer** — it parses anything the
+1.0, which `leitner` implements as a **consumer** — it parses anything the
 format calls valid and never refuses a file over one bad card. Its conformance
 corpus runs in this project's test suite. [`docs/format.md`](docs/format.md)
 covers what the format leaves to an implementation, and the card-identity scheme
@@ -20,31 +24,31 @@ that decides when an edit costs you review history.
 pnpm install
 pnpm build
 
-flashcards-tui list   [dir]   # decks and card counts
-flashcards-tui stats  [dir]   # totals, due/new/suspended, parse warnings
-flashcards-tui review [dir]   # interactive review session
-flashcards-tui export [dir]   # review state as a portable JSON bundle
-flashcards-tui import <file>  # merge a bundle into local state
+leitner list   [dir]   # decks and card counts
+leitner stats  [dir]   # totals, due/new/suspended, parse warnings
+leitner review [dir]   # interactive review session
+leitner export [dir]   # review state as a portable JSON bundle
+leitner import <file>  # merge a bundle into local state
 ```
 
-`dir` defaults to `sourceDir` from `~/.config/flashcards-tui/config.json`,
+`dir` defaults to `sourceDir` from `~/.config/leitner/config.json`,
 falling back to `~/notes/flashcards`.
 
 ### Local command
 
-`bin/flashcards-tui` is the development launcher: it rebuilds only when
+`bin/leitner` is the development launcher: it rebuilds only when
 sources changed, keeps the caller's working directory, and writes build output
 to stderr so `list`/`stats`/`export` stdout stays parseable. Expose it as a
 command with a thin wrapper:
 
 ```bash
-cat > ~/.local/bin/flashcards-tui <<'EOF'
+cat > ~/.local/bin/leitner <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec /home/shb/Work/flashcards-tui/bin/flashcards-tui "$@"
+exec /home/shb/Work/leitner/bin/leitner "$@"
 EOF
-chmod +x ~/.local/bin/flashcards-tui
+chmod +x ~/.local/bin/leitner
 ```
 
 Running through `pnpm run` instead would work but pollutes stdout with
@@ -59,7 +63,7 @@ lockfile and update-check lines.
 --due                   only due cards
 --new                   only new cards
 --limit <n>             cap queue size (review defaults to dailyLimit, 50)
---state <path>          state file (default ~/.local/share/flashcards-tui/review-state.json)
+--state <path>          state file (default ~/.local/share/leitner/review-state.json)
 --images                enable inline image previews (kitty graphics protocol)
 --out <path>            export: write here instead of stdout
 --prune                 export: drop records whose cards no longer exist
@@ -130,8 +134,8 @@ tmux set -g allow-passthrough on
 ### Moving state between machines
 
 ```bash
-flashcards-tui export --out review-state.json     # on the first machine
-flashcards-tui import review-state.json           # on the second
+leitner export --out review-state.json     # on the first machine
+leitner import review-state.json           # on the second
 ```
 
 `import` accepts an export bundle or a raw state file. The default `newer`
