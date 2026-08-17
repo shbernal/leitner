@@ -35,7 +35,7 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
-    "flashcard-md-spec": "github:shbernal/flashcard-md-spec",
+    "flashcard-md-spec": "~1.0.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "typescript": "^7.0.2",
