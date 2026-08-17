@@ -19,7 +19,7 @@ import { parseFile } from '../src/parser.js'
  */
 
 const require = createRequire(import.meta.url)
-const FIXTURES = path.dirname(require.resolve('@shbernal/flashcard-md-spec/manifest.json'))
+const FIXTURES = path.dirname(require.resolve('flashcard-md-spec/manifest.json'))
 
 /** The spec version this suite conforms to, pinned rather than tracked. */
 const SPEC_VERSION = '1.0'

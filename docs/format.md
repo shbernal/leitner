@@ -4,7 +4,7 @@
 own repository, and this document does not restate it:
 
 - the specification: [`SPEC.md`](https://github.com/shbernal/flashcard-md-spec/blob/master/SPEC.md)
-- the conformance corpus: `@shbernal/flashcard-md-spec`, run in
+- the conformance corpus: `flashcard-md-spec`, run in
   `tests/conformance.test.ts`
 
 What follows is what a reader of *this* project needs on top of that: the

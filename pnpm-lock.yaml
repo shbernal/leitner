@@ -30,9 +30,6 @@ importers:
         specifier: ^11.0.5
         version: 11.0.5
     devDependencies:
-      '@shbernal/flashcard-md-spec':
-        specifier: github:shbernal/flashcard-md-spec
-        version: https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/3a57ae336f49b3c7a38ae3560b8c0f84782b2579
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -42,6 +39,9 @@ importers:
       '@types/react':
         specifier: ^19.2.18
         version: 19.2.18
+      flashcard-md-spec:
+        specifier: github:shbernal/flashcard-md-spec
+        version: https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/b2a3addc1543abf16dae5f107810a921581c476f
       oxfmt:
         specifier: ^0.63.0
         version: 0.63.0
@@ -621,11 +621,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shbernal/flashcard-md-spec@https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/3a57ae336f49b3c7a38ae3560b8c0f84782b2579':
-    resolution: {gitHosted: true, integrity: sha512-GcUNX61eZvoQ5HAJ0GVG05tlX7KUDiL1utbazdN1W9K7cfQKLfdw8knOyedREiXTiSsSVkbIrHwO+8vnIkabPA==, tarball: https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/3a57ae336f49b3c7a38ae3560b8c0f84782b2579}
-    version: 0.0.1
-    engines: {node: '>=24'}
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -948,6 +943,11 @@ packages:
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
     engines: {node: '>=8'}
+
+  flashcard-md-spec@https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/b2a3addc1543abf16dae5f107810a921581c476f:
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/b2a3addc1543abf16dae5f107810a921581c476f}
+    version: 1.0.0
+    engines: {node: '>=24'}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -1712,8 +1712,6 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.4':
     optional: true
 
-  '@shbernal/flashcard-md-spec@https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/3a57ae336f49b3c7a38ae3560b8c0f84782b2579': {}
-
   '@standard-schema/spec@1.1.0': {}
 
   '@types/chai@5.2.3':
@@ -1981,6 +1979,8 @@ snapshots:
   fill-range@7.1.1:
     dependencies:
       to-regex-range: 5.0.1
+
+  flashcard-md-spec@https://codeload.github.com/shbernal/flashcard-md-spec/tar.gz/b2a3addc1543abf16dae5f107810a921581c476f: {}
 
   fsevents@2.3.3:
     optional: true

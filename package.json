@@ -32,10 +32,10 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
-    "@shbernal/flashcard-md-spec": "github:shbernal/flashcard-md-spec",
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
+    "flashcard-md-spec": "github:shbernal/flashcard-md-spec",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "typescript": "^7.0.2",

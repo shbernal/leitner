@@ -6,7 +6,7 @@
  * directly, and so nothing above it has to know which rules came from the spec.
  * `parser.ts` layers the I/O concerns on top: ids, resolved image paths, mtimes.
  *
- * Section references are to `SPEC.md` in `@shbernal/flashcard-md-spec`.
+ * Section references are to `SPEC.md` in `flashcard-md-spec`.
  */
 
 import matter from 'gray-matter'
