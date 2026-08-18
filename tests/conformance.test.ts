@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseDeck } from '../src/deck.js'
-import type { DiagnosticCode } from '../src/diagnostics.js'
+import { DIAGNOSTIC_CODES, type DiagnosticCode } from '../src/diagnostics.js'
 import { parseFile } from '../src/parser.js'
 
 /*
@@ -137,5 +137,52 @@ describe('consumer obligations the corpus states but cannot assert', () => {
     expect(result.warnings.map(({ code, cardIndex }) => ({ code, cardIndex }))).toEqual([
       { code: 'unresolved-image', cardIndex: 0 },
     ])
+  })
+
+  /*
+   * `unrepresentable-content` has no corpus fixture, so this is the only thing holding
+   * it. It asserts exactly the two obligations that hold whichever way the open salvage
+   * question is settled: §3.3 forbids losing the frontmatter in silence, and §3.1
+   * forbids refusing the file over it.
+   *
+   * It deliberately does NOT assert how many cards come back. Invalid YAML currently
+   * fabricates one from the closing `---` read as a setext `##` marker — see the note
+   * in docs/format.md. That is a bug awaiting a decision in flashcard-md-spec, and
+   * pinning the count here would turn it into promised behaviour.
+   */
+  it('reports invalid frontmatter and still loads the cards below it', () => {
+    const source = [
+      '---',
+      'tags: [a, b',
+      'type: film',
+      '---',
+      '',
+      '# Movies',
+      '',
+      '## Real card',
+      'body',
+      '',
+    ].join('\n')
+
+    const parsed = parseDeck(source)
+
+    expect(parsed.diagnostics.map(({ code }) => code)).toContain('unrepresentable-content')
+    expect(parsed.cards.map(({ headingText }) => headingText)).toContain('Real card')
+  })
+})
+
+/*
+ * DIAGNOSTIC_CODES is the closed list of §8, and the corpus is where a spec bump would
+ * first name a code this repo does not handle. Containment is asserted in one direction
+ * only: a code in the list that the corpus never exercises is fine — `tag-sanitized` is
+ * one, and it is in the list because the specification puts it there, not because
+ * anything here emits it.
+ */
+describe('the closed diagnostic-code list', () => {
+  it('covers every code the corpus manifest names', () => {
+    const inCorpus = [...new Set(manifest.cases.flatMap(({ diagnostics }) => diagnostics))].sort()
+    const unknown = inCorpus.filter((code) => !DIAGNOSTIC_CODES.includes(code))
+
+    expect(unknown).toEqual([])
   })
 })

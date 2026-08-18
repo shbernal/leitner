@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { parseDirectory, parseFile } from '../src/parser.js'
+import { cardId, parseDirectory, parseFile, slugify } from '../src/parser.js'
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
@@ -121,5 +121,62 @@ describe('parseDirectory', () => {
     ])
     expect(result.cards).toHaveLength(8)
     expect(result.warnings).toHaveLength(2)
+  })
+})
+
+/*
+ * The id scheme is sticky: review history is keyed on a card id and nothing else, so
+ * changing the derivation silently invalidates every record on disk and nothing tells
+ * the user. `docs/format.md` says so in prose; these literal hashes are what makes it
+ * cost something to break. If one of them fails, the question is not "update the
+ * expectation" — it is whether every existing user's review state is being discarded.
+ */
+describe('card identity', () => {
+  it('slugifies to lowercase alphanumerics joined by single dashes', () => {
+    expect(slugify('First card')).toBe('first-card')
+    expect(slugify('  Trailing & leading punctuation!  ')).toBe('trailing-leading-punctuation')
+    expect(slugify('Ökonomie 101')).toBe('konomie-101')
+    expect(slugify('C++')).toBe('c')
+  })
+
+  it('falls back to `untitled` when nothing survives slugification', () => {
+    expect(slugify('***')).toBe('untitled')
+    expect(slugify('')).toBe('untitled')
+  })
+
+  it('hashes path, heading slug and heading index into a stable sha1', () => {
+    expect(cardId('vocabulary/words.md', 'first-card', 0)).toBe(
+      '44f3cb83bca30ae07da8d86de3af28e141a6c271',
+    )
+    expect(cardId('notes.md', 'untitled', 0)).toBe('55338923e62f69e042b7f4dbc810a18297d3fa32')
+  })
+
+  it('changes when the heading index changes, which is why inserting a card resets it', () => {
+    expect(cardId('vocabulary/words.md', 'first-card', 1)).toBe(
+      'e574a01521fd411a8a84127546b1734dc4a5acb7',
+    )
+    expect(cardId('vocabulary/words.md', 'first-card', 1)).not.toBe(
+      cardId('vocabulary/words.md', 'first-card', 0),
+    )
+  })
+
+  it('gives duplicate headings distinct ids, and identical headings in two files too', () => {
+    expect(cardId('a.md', 'same', 0)).not.toBe(cardId('a.md', 'same', 1))
+    expect(cardId('a.md', 'same', 0)).not.toBe(cardId('b.md', 'same', 0))
+  })
+
+  it('derives the deck id the parser actually uses from the relative path', async () => {
+    const result = await parseFile(path.join(fixtures, 'vocabulary', 'words.md'), fixtures)
+    expect(result.deck?.id).toBe('vocabulary-words')
+    // Slugifying the whole path is what makes `a/b.md` and `a-b.md` collide, as
+    // docs/format.md warns.
+    expect(slugify('a/b')).toBe(slugify('a-b'))
+  })
+
+  it('gives a real parsed card the id the derivation predicts', async () => {
+    const result = await parseFile(path.join(fixtures, 'vocabulary', 'words.md'), fixtures)
+    const first = result.cards[0]
+    expect(first).toBeDefined()
+    expect(first?.id).toBe(cardId('vocabulary/words.md', slugify(first?.title ?? ''), 0))
   })
 })
