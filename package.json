@@ -1,21 +1,33 @@
 {
   "name": "leitner",
   "version": "0.1.0",
-  "description": "Terminal UI for reviewing markdown flashcards",
-  "type": "module",
+  "description": "Terminal UI for spaced-repetition review of Flashcard Markdown decks.",
+  "keywords": [
+    "cli",
+    "flashcards",
+    "leitner",
+    "markdown",
+    "spaced-repetition",
+    "terminal",
+    "tui"
+  ],
   "license": "MIT",
-  "engines": {
-    "node": ">=24"
+  "author": "shbernal",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shbernal/leitner"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
   "bin": {
     "leitner": "dist/index.js"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "leitner-local": "env LEITNER_CALLER_CWD=\"$INIT_CWD\" ./bin/leitner",
     "test": "vitest run",
     "lint": "oxlint src tests",
     "format": "oxfmt src tests",
@@ -40,5 +52,9 @@
     "oxlint": "^1.78.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
-  }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.21.0"
 }
