@@ -19,7 +19,7 @@ const CODE_SPAN = /(`+)(?:(?!\1)[\s\S])*?\1/g
 
 const FENCE = /^\s*(```|~~~)/
 
-export function isTagToken(token: string): boolean {
+function isTagToken(token: string): boolean {
   return TAG_TOKEN.test(token) && !ALL_NUMERIC.test(token)
 }
 
@@ -28,7 +28,7 @@ function maskCodeSpans(line: string): string {
   return line.replace(CODE_SPAN, (match) => ' '.repeat(match.length))
 }
 
-export function tagsInLine(line: string): string[] {
+function tagsInLine(line: string): string[] {
   const found: string[] = []
   for (const match of maskCodeSpans(line).matchAll(TAG_IN_TEXT)) {
     const token = match[1]

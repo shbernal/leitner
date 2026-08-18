@@ -511,7 +511,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 }
 
 /** What ReviewApp hands back through exit(), for the summary printed after teardown. */
-export type ReviewResult = { graded: number }
+type ReviewResult = { graded: number }
 
 function isReviewResult(value: unknown): value is ReviewResult {
   return (

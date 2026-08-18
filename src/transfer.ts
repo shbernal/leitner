@@ -5,7 +5,7 @@
 import { emptyState, type ReviewState } from './state.js'
 import type { ReviewRecord } from './types.js'
 
-export const BUNDLE_VERSION = 1
+const BUNDLE_VERSION = 1
 
 export type ExportBundle = {
   version: number
@@ -16,7 +16,7 @@ export type ExportBundle = {
 
 export type MergeStrategy = 'newer' | 'theirs' | 'ours'
 
-export const MERGE_STRATEGIES: MergeStrategy[] = ['newer', 'theirs', 'ours']
+const MERGE_STRATEGIES: MergeStrategy[] = ['newer', 'theirs', 'ours']
 
 export function isMergeStrategy(value: string): value is MergeStrategy {
   return (MERGE_STRATEGIES as string[]).includes(value)
