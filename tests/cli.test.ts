@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   filterCards,
+  parseCli,
   runExport,
   runImport,
   runList,
@@ -70,6 +71,83 @@ function record(cardId: string, overrides: Partial<ReviewRecord> = {}): ReviewRe
     ...overrides,
   }
 }
+
+describe('parseCli', () => {
+  /* parseCli calls loadConfig() with no argument, so the only lever on the config it
+     reads is where defaultConfigPath() looks. Point XDG_CONFIG_HOME at the temp dir
+     rather than opening an injection point in production code for the tests' sake. */
+  let previousXdg: string | undefined
+
+  beforeEach(() => {
+    previousXdg = process.env['XDG_CONFIG_HOME']
+    process.env['XDG_CONFIG_HOME'] = dir
+  })
+
+  afterEach(() => {
+    if (previousXdg === undefined) delete process.env['XDG_CONFIG_HOME']
+    else process.env['XDG_CONFIG_HOME'] = previousXdg
+  })
+
+  async function writeConfig(config: Record<string, unknown>): Promise<void> {
+    await fs.mkdir(path.join(dir, 'leitner'), { recursive: true })
+    await fs.writeFile(path.join(dir, 'leitner', 'config.json'), JSON.stringify(config))
+  }
+
+  it('prints usage and parses nothing for --help', async () => {
+    expect(await parseCli(['--help'])).toBeNull()
+    expect(stdout).toContain('Usage: leitner')
+  })
+
+  it('prints usage when no command is given', async () => {
+    expect(await parseCli([])).toBeNull()
+    expect(stdout).toContain('Usage: leitner')
+  })
+
+  it('rejects an unknown command', async () => {
+    await expect(parseCli(['study'])).rejects.toThrow('unknown command: study')
+  })
+
+  it('rejects --type together with --untyped', async () => {
+    await expect(parseCli(['list', '--type', 'film', '--untyped'])).rejects.toThrow(/disjoint/)
+  })
+
+  it('rejects an unknown --merge strategy', async () => {
+    await expect(parseCli(['import', 'b.json', '--merge', 'mine'])).rejects.toThrow(
+      'invalid --merge',
+    )
+  })
+
+  it('accepts every documented --merge strategy', async () => {
+    for (const merge of ['newer', 'theirs', 'ours']) {
+      expect((await parseCli(['import', 'b.json', '--merge', merge]))?.merge).toBe(merge)
+    }
+  })
+
+  it('parses --limit and rejects a non-number or a negative', async () => {
+    expect((await parseCli(['review', '--limit', '7']))?.limit).toBe(7)
+    await expect(parseCli(['review', '--limit', 'lots'])).rejects.toThrow('invalid --limit')
+    await expect(parseCli(['review', '--limit=-1'])).rejects.toThrow('invalid --limit')
+  })
+
+  it('requires a bundle path for import', async () => {
+    await expect(parseCli(['import'])).rejects.toThrow(/bundle path/)
+  })
+
+  it('falls back to dailyLimit for review only, and lets --limit win', async () => {
+    await writeConfig({ dailyLimit: 12 })
+    expect((await parseCli(['review']))?.limit).toBe(12)
+    expect((await parseCli(['list']))?.limit).toBeUndefined()
+    expect((await parseCli(['review', '--limit', '3']))?.limit).toBe(3)
+  })
+
+  it('takes sourceDir and defaultDeckFilter from the config unless a flag overrides', async () => {
+    await writeConfig({ sourceDir: '/decks', defaultDeckFilter: 'vocabulary-words' })
+    const fromConfig = await parseCli(['review'])
+    expect(fromConfig?.sourceDir).toBe('/decks')
+    expect(fromConfig?.deck).toBe('vocabulary-words')
+    expect((await parseCli(['review', '--deck', 'other']))?.deck).toBe('other')
+  })
+})
 
 describe('list command', () => {
   it('prints decks with card counts and warnings on stderr', async () => {
