@@ -162,9 +162,15 @@ export function parseDeck(source: string): ParsedDeck {
     frontmatter = parsed.data as Record<string, unknown>
     content = parsed.content
   } catch (error) {
-    /* Salvage rather than refuse (§3.2): the fences fall through as thematic breaks
-       and the metadata is lost, but the cards below still load. Losing it in silence
-       is what §3.3 forbids. */
+    /* Salvage rather than refuse (§3.2): the metadata is lost but the cards below
+       still load. Losing it in silence is what §3.3 forbids.
+
+       Only the *opening* `---` falls through as a thematic break. The closing one
+       reads as a setext `##` marker for the lines above it, so the frontmatter body
+       currently becomes a card of its own, with an id and review state. §3.2
+       mandates salvage without saying which salvage, so the fix — dropping nodes up
+       to the failed block, or rejecting a card whose heading came from a setext
+       marker inside it — is a specification question, open in flashcard-md-spec. */
     diagnostics.push(
       diagnostic(
         'unrepresentable-content',

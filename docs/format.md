@@ -151,10 +151,41 @@ failure. One bad file does not stop the rest of the directory parsing.
 | Empty or whitespace-only file | warning, no deck |
 | Frontmatter but no `##` headings | warning, no deck |
 | Prose only, no headings | warning, no deck |
-| Invalid YAML frontmatter | `unrepresentable-content`, parsed as content, no type |
+| Invalid YAML frontmatter | `unrepresentable-content`, parsed as content, no type — and see below |
 | A `##` heading with no text | `malformed-card-skipped`, the cards around it still load |
 | Duplicate `##` headings | two distinct cards, distinct ids — valid, not a warning |
 | A card with a heading and no body | a card with an empty back — valid, not a warning |
 | A second `#` heading | `stray-h1`; the region below it belongs to no card |
 | Unreadable file / parse crash | warning, file skipped |
 | Image path pointing at a missing file | `unresolved-image`; the card still loads |
+
+### Invalid frontmatter currently fabricates a card
+
+The row above understates the outcome. When the YAML fails to parse, the whole
+source is kept as content — and while the *opening* `---` falls through as a
+thematic break, the closing one reads as a **setext `##` marker** for the lines
+above it. The frontmatter body therefore becomes a card: it enters the queue,
+gets an id, and accrues review state.
+
+```
+---
+tags: [a, b
+type: film
+---
+
+# Movies
+
+## Real card
+```
+
+parses as two cards, `tags: [a, b\ntype: film` and `Real card`.
+
+This is not intended behaviour, and it is not settled behaviour either. §3.2
+mandates salvage without saying *which* salvage, and the two candidate fixes —
+dropping nodes up to and including the failed block, or refusing a card whose
+heading came from a setext marker inside it — differ in what they keep. That is
+a question for the specification, not something to decide here.
+
+What holds regardless, and what `tests/conformance.test.ts` pins: the diagnostic
+is raised, and the real cards after the broken block still load. A consumer never
+refuses a file over one malformed unit (§3.1).
