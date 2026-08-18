@@ -30,7 +30,7 @@ Scheduling metadata goes in the state file. Never into the markdown.
 
 ```bash
 pnpm install
-pnpm test         # vitest, 13 files
+pnpm test         # vitest, 14 files
 pnpm typecheck    # tsc --noEmit over src *and* tests
 pnpm lint         # oxlint
 pnpm format:check # oxfmt --check
@@ -79,6 +79,30 @@ resolved image paths, mtimes.
 `tests/conformance.test.ts` holds `unresolved-image` out of the corpus loop on
 purpose — whether an image resolves is a fact about the filesystem, not about the
 markdown — and asserts it through a real `parseFile` read instead.
+
+Two codes have no corpus fixture, and the same file carries what stands in for
+them:
+
+- `unrepresentable-content` is asserted by hand, and only for what holds
+  whichever way the open salvage question goes — the diagnostic is raised, the
+  cards below the broken block still load. Invalid YAML currently fabricates an
+  extra card from the closing `---`; the count is deliberately not pinned,
+  because pinning it would promise a bug.
+- `tag-sanitized` is never emitted here at all. That is why the
+  `DIAGNOSTIC_CODES` guard asserts containment **one way only**: every code the
+  corpus names must be in our list, not the reverse. The list is the spec's.
+
+## Testing the CLI
+
+`parseCli` calls `loadConfig()` with no argument, so there is no injection point
+for the config it reads. The tests set `XDG_CONFIG_HOME` to a temp directory and
+write `leitner/config.json` under it — chosen over widening the signature,
+because the production code gains nothing from the parameter.
+
+`tests/parser.test.ts` asserts **literal sha1 values** for card ids. That is the
+point: `docs/format.md` calls the scheme sticky, and a hard-coded hash is what
+makes "sticky" cost something. A failure there is a question about discarding
+every user's review state, not an expectation to refresh.
 
 ## Testing the TUI
 
