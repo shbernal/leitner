@@ -37,7 +37,10 @@ pnpm format:check # oxfmt --check
 pnpm build        # tsc -p tsconfig.build.json, src only, into dist/
 ```
 
-There is no single `check` script; run all five before a commit.
+There is no single `check` script and no pre-commit hook running them; run all
+five yourself before a commit. The only hook installed is `commit-msg`, from the
+shared `lefthook-rules` remote — it rejects agent-attribution trailers and
+nothing else.
 
 **`pnpm format` writes.** It is `oxfmt src tests`, not a check — the inverted
 naming relative to the sibling repos is a real trap. `format:check` is the
@@ -50,9 +53,9 @@ specifier to the `.ts` file beside it, so a direct run dies on
 
 `bin/leitner` is the development launcher: it rebuilds only when `src/` or either
 tsconfig is newer than `dist/index.js`, and sends build chatter to stderr so
-`list`/`stats`/`export` stdout stays parseable. `pnpm leitner-local` wraps it with
-`LEITNER_CALLER_CWD` for the `pnpm run` path, which is the only reason
-`src/index.ts` reads that variable.
+`list`/`stats`/`export` stdout stays parseable. It runs the build in a subshell
+and `exec`s node, so the caller's cwd survives and a relative `dir` argument
+resolves against it — no wrapper or env var involved.
 
 ## The conformance boundary
 
