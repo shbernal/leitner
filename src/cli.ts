@@ -31,7 +31,7 @@ Options:
   --untyped               Only include cards whose file declares no type
   --due                   Only due cards
   --new                   Only new (never reviewed) cards
-  --limit <n>             Cap the review queue size
+  --limit <n>             Cap the review queue size (review: dailyLimit, default 50)
   --state <path>          Review state file (default: ~/.local/share/leitner/review-state.json)
   --images                Enable inline image previews (kitty graphics protocol)
   --out <path>            export: write here instead of stdout

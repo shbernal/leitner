@@ -36,10 +36,11 @@ falling back to `~/notes/flashcards`.
 
 ### Local command
 
-`bin/leitner` is the development launcher: it rebuilds only when
-sources changed, keeps the caller's working directory, and writes build output
-to stderr so `list`/`stats`/`export` stdout stays parseable. Expose it as a
-command with a thin wrapper:
+`bin/leitner` is the development launcher: it rebuilds only when sources
+changed and writes build output to stderr so `list`/`stats`/`export` stdout
+stays parseable. It `exec`s node from wherever it was called, so a relative
+`dir` argument means what it looks like it means. Expose it as a command with a
+thin wrapper:
 
 ```bash
 cat > ~/.local/bin/leitner <<'EOF'
@@ -50,9 +51,6 @@ exec /home/shb/Work/leitner/bin/leitner "$@"
 EOF
 chmod +x ~/.local/bin/leitner
 ```
-
-Running through `pnpm run` instead would work but pollutes stdout with
-lockfile and update-check lines.
 
 ### Flags
 
@@ -69,12 +67,14 @@ lockfile and update-check lines.
 --prune                 export: drop records whose cards no longer exist
 --merge <strategy>      import: newer (default) | theirs | ours
 --dry-run               import: report what would change without writing
+-h, --help              show this help
 ```
 
 ### Review keys
 
-`review` opens a deck picker first, unless `--deck` narrowed the session
-already. Pick `All decks` to study everything.
+`review` opens a deck picker first, unless the session is already narrowed to
+one deck — by `--deck`, or by `defaultDeckFilter` in the config, which sets the
+same option. Pick `All decks` to study everything.
 
 ```text
 enter/space  select deck (picker) · reveal answer (review)
@@ -151,15 +151,21 @@ always takes the incoming record, `ours` only fills in unseen cards. Pair with
 ## Development
 
 ```bash
-pnpm test        # vitest
-pnpm typecheck   # tsc --noEmit over src and tests
-pnpm lint        # oxlint
-pnpm format      # oxfmt (use --check in CI via pnpm format:check)
+pnpm test          # vitest
+pnpm typecheck     # tsc --noEmit over src and tests
+pnpm lint          # oxlint
+pnpm format:check  # oxfmt, read-only (pnpm format writes)
+pnpm build         # tsc -p tsconfig.build.json, into dist/
 ```
 
 `tsconfig.json` is the checking config and covers `tests/` too; `pnpm build`
 uses `tsconfig.build.json`, which narrows the input to `src` so only library
 code is emitted to `dist`.
+
+`pnpm install` runs `prepare`, which installs the git hooks in `lefthook.yml`.
+The only one is a shared `commit-msg` rule fetched from
+[`lefthook-rules`](https://github.com/shbernal/lefthook-rules); the checks above
+are not wired to a hook, so run them yourself before a commit.
 
 Layout: `src/deck.ts` (Flashcard Markdown → parsed deck; the conformance
 surface, pure and free of I/O), `src/tags.ts` and `src/diagnostics.ts` (the
