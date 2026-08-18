@@ -1,0 +1,19 @@
+# Commit-message rules shared across every repo here, so the regex has one
+# definition rather than one copy per project. Lefthook fetches this on `install`
+# and caches it under .git/info/lefthook-remotes/; refetch_frequency is what lets
+# a fix in the shared repo ever arrive. The tag is pinned on purpose — a branch
+# would mean any push there changes what this repo runs.
+#
+# Jobs merge rather than override, so adding a local commit-msg job later does
+# not displace this one.
+remotes:
+  - git_url: https://github.com/shbernal/lefthook-rules
+    ref: v1
+    configs:
+      - rules/no-ai-attribution.yml
+    refetch_frequency: 24h
+
+# No local jobs on purpose. The five checks this repo runs before a commit
+# (test, typecheck, lint, format:check, build) take long enough that a
+# pre-commit hook would train the habit of --no-verify, and there is no CI yet
+# whose gates a hook could mirror. Add them here when that changes.

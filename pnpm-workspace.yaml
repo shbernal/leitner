@@ -1,4 +1,8 @@
+# pnpm blocks dependency lifecycle scripts by default. lefthook's postinstall
+# links its platform binary, so denying it leaves `pnpm exec lefthook install`
+# failing with ERR_PNPM_IGNORED_BUILDS while `prepare` still looks like it ran.
 allowBuilds:
   esbuild: true
+  lefthook: true
 minimumReleaseAgeExclude:
   - flashcard-md-spec@1.0.0

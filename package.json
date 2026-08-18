@@ -32,7 +32,8 @@
     "lint": "oxlint src tests",
     "format": "oxfmt src tests",
     "format:check": "oxfmt --check src tests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "fast-glob": "^3.3.3",
@@ -48,6 +49,7 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "flashcard-md-spec": "~1.0.0",
+    "lefthook": "^2.1.10",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "typescript": "^7.0.2",
