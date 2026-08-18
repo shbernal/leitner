@@ -90,11 +90,18 @@ describe('list command', () => {
 describe('stats command', () => {
   it('reports totals, due/new/suspended counts and warning count', async () => {
     await runStats(options('stats'))
+    expect(stdout).toContain('decks:           5')
     expect(stdout).toContain('total cards:     8')
     expect(stdout).toContain('new cards:       8')
     expect(stdout).toContain('due cards:       0')
     expect(stdout).toContain('suspended cards: 0')
     expect(stdout).toContain('parse warnings:  2')
+  })
+
+  it('counts the decks the filter left, not every deck on disk', async () => {
+    await runStats(options('stats', { deck: 'vocabulary-words' }))
+    expect(stdout).toContain('decks:           1')
+    expect(stdout).toContain('total cards:     1')
   })
 })
 

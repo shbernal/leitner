@@ -199,7 +199,10 @@ export async function runStats(options: CliOptions): Promise<void> {
 
   process.stdout.write(`source:          ${options.sourceDir}\n`)
   process.stdout.write(`state:           ${options.statePath}\n`)
-  process.stdout.write(`decks:           ${parsed.decks.length}\n`)
+  // Count the decks the filter left, the way `list` does. `parsed.decks` is
+  // every deck on disk, so an unfiltered count next to a filtered card total
+  // reads as "decks: 5, total cards: 1" under `--deck`.
+  process.stdout.write(`decks:           ${summaries.size}\n`)
   process.stdout.write(`total cards:     ${cards.length}\n`)
   process.stdout.write(`due cards:       ${due}\n`)
   process.stdout.write(`new cards:       ${fresh}\n`)
