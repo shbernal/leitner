@@ -3,7 +3,10 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // `files` ships dist without src, so a .js.map would point at sources that are
+    // not in the tarball. Off here rather than in tsconfig.json, which emits nothing.
+    "sourceMap": false
   },
   "include": ["src"]
 }

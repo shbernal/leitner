@@ -34,7 +34,7 @@ pnpm test         # vitest, 14 files
 pnpm typecheck    # tsc --noEmit over src *and* tests
 pnpm lint         # oxlint
 pnpm format:check # oxfmt --check
-pnpm build        # tsc -p tsconfig.build.json, src only, into dist/
+pnpm build        # tsc -p tsconfig.build.json, src only, into a cleared dist/
 ```
 
 There is no single `check` script and no pre-commit hook running them; run all

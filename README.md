@@ -18,12 +18,24 @@ corpus runs in this project's test suite. [`docs/format.md`](docs/format.md)
 covers what the format leaves to an implementation, and the card-identity scheme
 that decides when an edit costs you review history.
 
-## Usage
+## Install
+
+Needs Node 24 or newer.
+
+```bash
+pnpm add -g leitner
+```
+
+From a clone instead — which is what the development launcher below assumes:
 
 ```bash
 pnpm install
 pnpm build
+```
 
+## Usage
+
+```bash
 leitner list   [dir]   # decks and card counts
 leitner stats  [dir]   # totals, due/new/suspended, parse warnings
 leitner review [dir]   # interactive review session
@@ -155,7 +167,7 @@ pnpm test          # vitest
 pnpm typecheck     # tsc --noEmit over src and tests
 pnpm lint          # oxlint
 pnpm format:check  # oxfmt, read-only (pnpm format writes)
-pnpm build         # tsc -p tsconfig.build.json, into dist/
+pnpm build         # tsc -p tsconfig.build.json, into a cleared dist/
 ```
 
 `tsconfig.json` is the checking config and covers `tests/` too; `pnpm build`
