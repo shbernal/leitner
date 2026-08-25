@@ -2,10 +2,12 @@
 
 ## Project stage
 
-Nothing is released — no npm package, no GitHub remote, no tags. There is no
-backwards-compatibility obligation and no deference owed to the prior
-architecture: existing code, docs and plans are context, not constraints, and the
-simplest coherent design for the current direction wins.
+Nothing is released — no npm package and no tags. The GitHub remote exists
+(`shbernal/leitner`, public) and CI runs the five checks on it, but nothing
+consumes this yet. There is no backwards-compatibility obligation and no
+deference owed to the prior architecture: existing code, docs and plans are
+context, not constraints, and the simplest coherent design for the current
+direction wins.
 
 Two things are sticky anyway, and neither is about compatibility with a consumer:
 
