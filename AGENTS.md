@@ -2,15 +2,13 @@
 
 ## Project stage
 
-`v0.1.0` is tagged and released on GitHub (`shbernal/leitner`, public, CI
-running the five checks). It is **not** on npm, so nothing installs this as a
-dependency and no consumer can be broken by changing it. There is still no
-backwards-compatibility obligation and no deference owed to the prior
-architecture: existing code, docs and plans are context, not constraints, and
-the simplest coherent design for the current direction wins.
+Published: `leitner` on npm, `shbernal/leitner` on GitHub, both public. It is a
+`0.x` CLI with no known dependents, so there is no backwards-compatibility
+obligation and no deference owed to the prior architecture: existing code, docs
+and plans are context, not constraints, and the simplest coherent design for the
+current direction wins. Delete rather than deprecate.
 
-That changes the day it is published. Until then the only thing a version bump
-protects is the review state described below.
+The one thing a version bump protects is the review state described below.
 
 Two things are sticky anyway, and neither is about compatibility with a consumer:
 
@@ -64,6 +62,23 @@ tsconfig is newer than `dist/index.js`, and sends build chatter to stderr so
 and `exec`s node, so the caller's cwd survives and a relative `dir` argument
 resolves against it — no wrapper or env var involved.
 
+## Releasing
+
+`.github/workflows/publish.yml` publishes to npm through trusted publishing
+(OIDC) — there is no token anywhere, and npmjs.com is configured against this
+repository *and that file path*, so renaming the file breaks publishing.
+
+A release is: bump `version` in `package.json`, commit, tag `vX.Y.Z`, then
+publish a GitHub release on that tag. The `release: [published]` trigger does
+the rest; `workflow_dispatch` is there for a re-run. The workflow re-runs the
+five checks, refuses a tag that disagrees with `package.json`, and refuses a
+version already on the registry.
+
+**It builds explicitly before packing.** `npm publish --ignore-scripts` skips
+`prepublishOnly`, and `files` ships `dist` without anything else rebuilding it,
+so dropping that step publishes a tarball with no code in it. The step after it
+asserts `dist/index.js` exists for the same reason.
+
 ## The conformance boundary
 
 `src/deck.ts`, with `src/tags.ts` and `src/diagnostics.ts`, is the whole
@@ -74,9 +89,10 @@ resolved image paths, mtimes.
 - The corpus is the `flashcard-md-spec` npm package, run as this project's own
   suite in `tests/conformance.test.ts`. `SPEC_VERSION` there pins `1.0` rather
   than tracking whatever is installed, so a corpus bump fails loudly.
-- **A parse-rule change is a spec change.** Make it in `~/Work/flashcard-md-spec`
-  first — prose, corpus and version together — then follow it here. Do not
-  special-case a fixture in this repo.
+- **A parse-rule change is a spec change.** Make it in the
+  [`flashcard-md-spec`](https://github.com/shbernal/flashcard-md-spec)
+  repository first — prose, corpus and version together — then follow it here.
+  Do not special-case a fixture in this repo.
 - The diagnostic codes in `src/diagnostics.ts` are the closed list of §8. Adding
   one here is not how a code comes into existence.
 - Diagnostic *messages* are ours and no test may assert on them. Assert the code.
@@ -160,9 +176,11 @@ changing the prose is how they rot.
 
 ## Safety
 
-- Never run a review session against `~/notes/flashcards` to try something out —
-  grading writes real review state. Use `tests/fixtures/`, or a temp directory
-  with `--state` pointed somewhere disposable.
+- Never run a review session against a real deck directory to try something out —
+  grading writes review state the user cannot get back. Use `tests/fixtures/`, or
+  a temp directory with `--state` pointed somewhere disposable.
 - `--state` and `--out` both expand `~`; check where a command will write before
   running it.
-- Ask before creating tags, a GitHub remote, a release, or an npm publish.
+- Ask before creating a tag, a release, or an npm publish. Publishing a GitHub
+  release **is** an npm publish now — the workflow fires on it — and a version
+  cannot be unpublished after 72 hours. There is no separate confirmation step.

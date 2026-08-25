@@ -76,8 +76,8 @@ Absence is not a value. A file that declares no `type` is selected with
 
 Parsing and rendering are separate concerns. Both local relative paths and
 absolute URLs are legal (§7), and relative paths resolve against the deck file's
-own directory. The convention in `~/notes` is a `.images/` directory beside the
-file with kebab-case filenames.
+own directory. A common layout is a `.images/` directory beside the file, but the
+format requires nothing of the sort and neither does this program.
 
 With `--images`, **only PNG is transmitted as actual pixels** — the kitty
 graphics protocol defines direct file transmission for PNG, and files are checked

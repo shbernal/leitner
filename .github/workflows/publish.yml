@@ -1,0 +1,95 @@
+name: Publish to npm
+
+# Trusted publishing (OIDC) is configured on npmjs.com against this repository
+# and this file's path. Renaming this file breaks that connection, so it stays
+# at .github/workflows/publish.yml.
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish leitner
+    if: github.repository == 'shbernal/leitner'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The same gates CI runs, in the same order. A release must not publish
+      # something `pnpm test` would have rejected.
+      - name: Lint
+        run: pnpm run lint
+
+      # `format:check`, not `format` — in this repo `pnpm format` writes.
+      - name: Check formatting
+        run: pnpm run format:check
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Verify the release tag matches package.json
+        if: github.event_name == 'release'
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [ "${{ github.ref_name }}" != "v$PACKAGE_VERSION" ] && [ "${{ github.ref_name }}" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Release tag '${{ github.ref_name }}' does not match package version '$PACKAGE_VERSION'."
+            exit 1
+          fi
+
+      - name: Verify the version is unpublished
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PACKAGE_NAME@$PACKAGE_VERSION is already published on npm."
+            exit 1
+          fi
+
+      # Explicit, because the publish below runs with --ignore-scripts and would
+      # otherwise skip the `prepublishOnly` that produces dist. `files` ships
+      # `dist` and nothing rebuilds it: without this the tarball has no code in it.
+      - name: Build
+        run: pnpm run build
+
+      - name: Verify the package contents
+        run: |
+          npm pack --dry-run --ignore-scripts
+          test -f dist/index.js || { echo "::error::dist/index.js is missing; the tarball would ship no entrypoint."; exit 1; }
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance --ignore-scripts

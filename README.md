@@ -59,7 +59,7 @@ cat > ~/.local/bin/leitner <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec /home/shb/Work/leitner/bin/leitner "$@"
+exec /path/to/leitner/bin/leitner "$@"
 EOF
 chmod +x ~/.local/bin/leitner
 ```
