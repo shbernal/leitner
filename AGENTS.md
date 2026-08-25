@@ -40,7 +40,9 @@ pnpm build        # tsc -p tsconfig.build.json, src only, into a cleared dist/
 There is no single `check` script and no pre-commit hook running them; run all
 five yourself before a commit. The only hook installed is `commit-msg`, from the
 shared `lefthook-rules` remote — it rejects agent-attribution trailers and
-nothing else.
+nothing else. `.github/workflows/ci.yml` runs the same five on push and pull
+request, plus `npm pack --dry-run` after the build; it is the backstop, not a
+substitute for running them locally.
 
 **`pnpm format` writes.** It is `oxfmt src tests`, not a check — the inverted
 naming relative to the sibling repos is a real trap. `format:check` is the

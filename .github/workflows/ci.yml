@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # `prepare` runs `lefthook install`, which fetches the shared commit-msg
+      # rules. Pointless on a runner that makes no commits, but harmless, and
+      # skipping scripts here would also skip esbuild's, which vitest needs.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      # `format:check`, not `format`. In this repo `pnpm format` *writes* — the
+      # naming is inverted relative to flashcard-md-spec, where `format` is the
+      # read-only one. Using it here would rewrite files and pass regardless.
+      - name: Check formatting
+        run: pnpm run format:check
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      # Runs after the build on purpose: `files` ships `dist`, `--ignore-scripts`
+      # skips the `prepublishOnly` that would otherwise produce it, and packing an
+      # empty `dist` would report a passing check on a broken tarball.
+      - name: Check the package contents
+        run: npm pack --dry-run --ignore-scripts

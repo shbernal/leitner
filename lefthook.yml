@@ -15,5 +15,6 @@ remotes:
 
 # No local jobs on purpose. The five checks this repo runs before a commit
 # (test, typecheck, lint, format:check, build) take long enough that a
-# pre-commit hook would train the habit of --no-verify, and there is no CI yet
-# whose gates a hook could mirror. Add them here when that changes.
+# pre-commit hook would train the habit of --no-verify. They live in
+# .github/workflows/ci.yml instead, which is where a gate can be slow without
+# anyone being tempted to skip it.
