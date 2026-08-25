@@ -52,6 +52,24 @@ afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
+/**
+ * The review state as it reached disk.
+ *
+ * `persist` in review.tsx fires `saveState` without awaiting it, so a keypress never
+ * blocks on I/O — which means the frame can already show the result while the file
+ * is still unwritten. Reading it once therefore races the write, so every assertion
+ * about the file polls instead. CI caught this as a flake on the rename test; the
+ * 30ms each `press` spends was enough to hide it locally.
+ */
+function writtenState(check: (written: ReviewState) => void) {
+  return vi.waitFor(
+    async () => {
+      check(JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState)
+    },
+    { timeout: 2000, interval: 20 },
+  )
+}
+
 type Overrides = Partial<React.ComponentProps<typeof ReviewApp>>
 
 async function open(size?: { columns?: number; rows?: number }, overrides: Overrides = {}) {
@@ -157,10 +175,11 @@ describe('ReviewApp', () => {
     await ui.press(KEY.space)
     await ui.press('2')
 
-    const written = JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState
-    expect(Object.keys(written.records).sort()).toEqual(['a', 'b'])
-    expect(written.records['a']?.ease).toBe(2.5)
-    expect(written.records['b']?.ease).toBe(2.35)
+    await writtenState((written) => {
+      expect(Object.keys(written.records).sort()).toEqual(['a', 'b'])
+      expect(written.records['a']?.ease).toBe(2.5)
+      expect(written.records['b']?.ease).toBe(2.35)
+    })
   })
 
   it('ends the session after the last card', async () => {
@@ -465,8 +484,9 @@ describe('ReviewApp editing', () => {
     expect(state.records[renamed]).toMatchObject({ cardId: renamed, reps: 3, ease: 2.1 })
     expect(ui.frame()).toContain('1 record followed the edit')
 
-    const written = JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState
-    expect(written.records[renamed]?.reps).toBe(3)
+    await writtenState((written) => {
+      expect(written.records[renamed]?.reps).toBe(3)
+    })
   })
 
   it('drops a card deleted in the editor and moves on', async () => {
