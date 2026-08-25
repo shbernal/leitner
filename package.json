@@ -1,6 +1,6 @@
 {
   "name": "leitner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Terminal UI for spaced-repetition review of Flashcard Markdown decks.",
   "keywords": [
     "cli",
