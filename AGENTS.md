@@ -83,11 +83,12 @@ markdown — and asserts it through a real `parseFile` read instead.
 Two codes have no corpus fixture, and the same file carries what stands in for
 them:
 
-- `unrepresentable-content` is asserted by hand, and only for what holds
-  whichever way the open salvage question goes — the diagnostic is raised, the
-  cards below the broken block still load. Invalid YAML currently fabricates an
-  extra card from the closing `---`; the count is deliberately not pinned,
-  because pinning it would promise a bug.
+- `unrepresentable-content` is asserted by hand, and pins all three of §3.2's
+  tier-3 obligations: the diagnostic is raised, the cards below the broken block
+  load, and the block itself yields **no** card. The card list is asserted
+  exactly rather than by containment — invalid YAML used to fabricate a card from
+  the closing `---` read as a setext marker, so the count is the assertion that
+  matters. `stripFrontmatterBlock` in `src/deck.ts` is what prevents it.
 - `tag-sanitized` is never emitted here at all. That is why the
   `DIAGNOSTIC_CODES` guard asserts containment **one way only**: every code the
   corpus names must be in our list, not the reverse. The list is the spec's.

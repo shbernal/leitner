@@ -59,6 +59,21 @@ export type ParsedDeck = {
   diagnostics: Diagnostic[]
 }
 
+/**
+ * The frontmatter block, cut out by hand for when gray-matter cannot parse it.
+ *
+ * §4.1 puts frontmatter first in the file and delimits it with a line that is
+ * exactly `---`. That rule is lexical, so the block's boundary survives the YAML
+ * inside it failing to parse — the parser loses the metadata, not the region.
+ */
+function stripFrontmatterBlock(source: string): string {
+  const lines = source.split('\n')
+  if (lines[0]?.trimEnd() !== '---') return source
+  const close = lines.findIndex((line, index) => index > 0 && line.trimEnd() === '---')
+  if (close === -1) return source
+  return lines.slice(close + 1).join('\n')
+}
+
 function countLines(text: string): number {
   return text.split('\n').length
 }
@@ -165,12 +180,12 @@ export function parseDeck(source: string): ParsedDeck {
     /* Salvage rather than refuse (§3.2): the metadata is lost but the cards below
        still load. Losing it in silence is what §3.3 forbids.
 
-       Only the *opening* `---` falls through as a thematic break. The closing one
-       reads as a setext `##` marker for the lines above it, so the frontmatter body
-       currently becomes a card of its own, with an id and review state. §3.2
-       mandates salvage without saying which salvage, so the fix — dropping nodes up
-       to the failed block, or rejecting a card whose heading came from a setext
-       marker inside it — is a specification question, open in flashcard-md-spec. */
+       The block has to be removed here, because gray-matter hands back nothing usable
+       when it throws. Keeping the whole source instead lets the *closing* `---` read
+       as a setext `##` marker for the lines above it, which promotes the frontmatter
+       body to a card with an id and review state. §3.2 permits skipping the bad unit,
+       not fabricating one, and §4.1 makes the region a defined non-card region. */
+    content = stripFrontmatterBlock(source)
     diagnostics.push(
       diagnostic(
         'unrepresentable-content',

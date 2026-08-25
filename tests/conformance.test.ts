@@ -141,16 +141,15 @@ describe('consumer obligations the corpus states but cannot assert', () => {
 
   /*
    * `unrepresentable-content` has no corpus fixture, so this is the only thing holding
-   * it. It asserts exactly the two obligations that hold whichever way the open salvage
-   * question is settled: §3.3 forbids losing the frontmatter in silence, and §3.1
-   * forbids refusing the file over it.
+   * it, and it pins all three of §3.2's tier-3 obligations: salvage the rest of the
+   * file, skip the bad unit, say so.
    *
-   * It deliberately does NOT assert how many cards come back. Invalid YAML currently
-   * fabricates one from the closing `---` read as a setext `##` marker — see the note
-   * in docs/format.md. That is a bug awaiting a decision in flashcard-md-spec, and
-   * pinning the count here would turn it into promised behaviour.
+   * The card list is asserted exactly, not by containment, because "skip the bad unit"
+   * is the one that was got wrong. Keeping the whole source on a parse failure let the
+   * *closing* `---` read as a setext `##` marker, and the frontmatter body arrived as a
+   * card of its own — a fabricated unit, which is not one of the permitted outcomes.
    */
-  it('reports invalid frontmatter and still loads the cards below it', () => {
+  it('reports invalid frontmatter, skips the block and loads the cards below it', () => {
     const source = [
       '---',
       'tags: [a, b',
@@ -167,7 +166,11 @@ describe('consumer obligations the corpus states but cannot assert', () => {
     const parsed = parseDeck(source)
 
     expect(parsed.diagnostics.map(({ code }) => code)).toContain('unrepresentable-content')
-    expect(parsed.cards.map(({ headingText }) => headingText)).toContain('Real card')
+    expect(parsed.cards.map(({ headingText }) => headingText)).toEqual(['Real card'])
+    /* The frontmatter is lost, but the region it occupied is not mistaken for content:
+       the `#` below it is still the title, and the card still reports its true line. */
+    expect(parsed.title).toBe('Movies')
+    expect(parsed.cards[0]?.headingLine).toBe(8)
   })
 })
 

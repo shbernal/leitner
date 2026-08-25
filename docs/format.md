@@ -151,7 +151,7 @@ failure. One bad file does not stop the rest of the directory parsing.
 | Empty or whitespace-only file | warning, no deck |
 | Frontmatter but no `##` headings | warning, no deck |
 | Prose only, no headings | warning, no deck |
-| Invalid YAML frontmatter | `unrepresentable-content`, parsed as content, no type — and see below |
+| Invalid YAML frontmatter | `unrepresentable-content`, the block skipped, no file tags and no type |
 | A `##` heading with no text | `malformed-card-skipped`, the cards around it still load |
 | Duplicate `##` headings | two distinct cards, distinct ids — valid, not a warning |
 | A card with a heading and no body | a card with an empty back — valid, not a warning |
@@ -159,13 +159,14 @@ failure. One bad file does not stop the rest of the directory parsing.
 | Unreadable file / parse crash | warning, file skipped |
 | Image path pointing at a missing file | `unresolved-image`; the card still loads |
 
-### Invalid frontmatter currently fabricates a card
+### What "skipped" means for invalid frontmatter
 
-The row above understates the outcome. When the YAML fails to parse, the whole
-source is kept as content — and while the *opening* `---` falls through as a
-thematic break, the closing one reads as a **setext `##` marker** for the lines
-above it. The frontmatter body therefore becomes a card: it enters the queue,
-gets an id, and accrues review state.
+§3.2 asks a tier-3 consumer for three things — salvage the rest of the file, skip
+the bad unit, say so — and the block's boundary is what makes the middle one
+possible. §4.1 puts frontmatter first in the file and delimits it with a line that
+is exactly `---`, which is a lexical rule: it still holds when the YAML between
+the delimiters does not parse. So the region is cut out on its own terms, the
+metadata inside it is lost, and everything below is read normally.
 
 ```
 ---
@@ -178,14 +179,19 @@ type: film
 ## Real card
 ```
 
-parses as two cards, `tags: [a, b\ntype: film` and `Real card`.
+parses as one card, `Real card`, under the title `Movies`, with
+`unrepresentable-content` raised and no file tags.
 
-This is not intended behaviour, and it is not settled behaviour either. §3.2
-mandates salvage without saying *which* salvage, and the two candidate fixes —
-dropping nodes up to and including the failed block, or refusing a card whose
-heading came from a setext marker inside it — differ in what they keep. That is
-a question for the specification, not something to decide here.
+Cutting the region out is not optional tidying. Keeping the whole source instead
+leaves the *opening* `---` to fall through as a thematic break while the closing
+one reads as a **setext `##` marker** for the lines above it — so the frontmatter
+body arrives as a card, entering the queue and accruing review state under an id
+of its own. Fabricating a unit is not one of the outcomes §3.2 permits, and §4.1
+makes the region a defined non-card region, so nothing there was ever eligible.
 
-What holds regardless, and what `tests/conformance.test.ts` pins: the diagnostic
-is raised, and the real cards after the broken block still load. A consumer never
-refuses a file over one malformed unit (§3.1).
+One loose end, and it does not affect behaviour: §8 defines
+`malformed-card-skipped` as "a tier-3 unit was skipped so the rest of the file
+could be read (§3.2)", which is exactly this case except that the skipped unit is
+not a card and the code name says it is. Whether the spec wants a code covering
+non-card units is a question for `flashcard-md-spec`;
+`unrepresentable-content` is the honest choice until it answers.
