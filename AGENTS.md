@@ -2,12 +2,15 @@
 
 ## Project stage
 
-Nothing is released — no npm package and no tags. The GitHub remote exists
-(`shbernal/leitner`, public) and CI runs the five checks on it, but nothing
-consumes this yet. There is no backwards-compatibility obligation and no
-deference owed to the prior architecture: existing code, docs and plans are
-context, not constraints, and the simplest coherent design for the current
-direction wins.
+`v0.1.0` is tagged and released on GitHub (`shbernal/leitner`, public, CI
+running the five checks). It is **not** on npm, so nothing installs this as a
+dependency and no consumer can be broken by changing it. There is still no
+backwards-compatibility obligation and no deference owed to the prior
+architecture: existing code, docs and plans are context, not constraints, and
+the simplest coherent design for the current direction wins.
+
+That changes the day it is published. Until then the only thing a version bump
+protects is the review state described below.
 
 Two things are sticky anyway, and neither is about compatibility with a consumer:
 
