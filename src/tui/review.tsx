@@ -17,8 +17,6 @@ export type ReviewSessionOptions = {
   decks: Deck[]
   state: ReviewState
   statePath: string
-  /** The collection root, needed to re-derive card ids after an edit. */
-  rootDir: string
   queueOptions: QueueOptions
   /** When set, the deck picker is skipped. */
   deckFilter?: string | undefined
@@ -82,7 +80,7 @@ function matches(item: QueueItem, needle: string): boolean {
 }
 
 export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
-  const { cards, decks, state, statePath, rootDir, queueOptions, images, displayablePngs } = options
+  const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
   const openEditor = options.openEditor ?? runEditor
   const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
@@ -222,7 +220,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 
     let after: Flashcard[]
     try {
-      after = (await parseFile(sourcePath, rootDir)).cards
+      // The card's own root, so the reread derives ids exactly as the first
+      // parse did. Any other directory would rename every card in the file.
+      after = (await parseFile(sourcePath, target.card.rootDir)).cards
     } catch (error) {
       setEditing(false)
       setMessage(`edited, but could not reread ${sourcePath}: ${String(error)}`)

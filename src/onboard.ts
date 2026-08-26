@@ -6,7 +6,9 @@ import {
   DEFAULT_CONFIG,
   defaultConfigPath,
   expandHome,
+  normalizeSourceDirs,
   readConfigFile,
+  sourceDirsFrom,
   withDefaults,
   writeConfig,
 } from './config.js'
@@ -17,8 +19,10 @@ export type Ask = (question: string, defaultAnswer?: string) => Promise<string>
 
 export type InitOptions = {
   configPath?: string
-  /** Skips the prompt entirely: `leitner init <dir>`, and the only non-interactive way in. */
-  dir?: string
+  /** Skips the prompt entirely: `leitner init <dir...>`, and the only non-interactive way in. */
+  dirs?: string[]
+  /** Keep the directories already configured and add to them. */
+  add?: boolean
   ask?: Ask
   out?: (text: string) => void
 }
@@ -70,17 +74,23 @@ export async function runInit(options: InitOptions = {}): Promise<AppConfig> {
   const out = options.out ?? ((text: string) => process.stderr.write(`${text}\n`))
   const existing = await readConfigFile(configPath)
 
-  let sourceDir: string
-  if (options.dir !== undefined) {
-    sourceDir = path.resolve(expandHome(options.dir))
-    const problem = await inspect(sourceDir)
-    // Non-interactive callers get an error rather than a prompt they cannot answer.
-    if (problem !== null) throw new Error(describe(problem, sourceDir))
+  let answered: string[]
+  if (options.dirs !== undefined && options.dirs.length > 0) {
+    answered = options.dirs.map((dir) => path.resolve(expandHome(dir)))
+    for (const dir of answered) {
+      const problem = await inspect(dir)
+      // Non-interactive callers get an error rather than a prompt they cannot answer.
+      if (problem !== null) throw new Error(describe(problem, dir))
+    }
   } else {
-    sourceDir = await prompt(options.ask, out, configPath, existing !== null)
+    answered = await prompt(options.ask, out, configPath, existing !== null)
   }
 
-  const config = withDefaults({ ...existing, sourceDir })
+  // `--add` grows the collection; without it the answer is the collection, so
+  // dropping a directory needs no separate command.
+  const sourceDirs = options.add === true ? [...sourceDirsFrom(existing), ...answered] : answered
+
+  const config = withDefaults({ ...existing, sourceDirs })
   await writeConfig(configPath, config)
   out(`wrote ${configPath}`)
   return config
@@ -91,7 +101,7 @@ async function prompt(
   out: (text: string) => void,
   configPath: string,
   exists: boolean,
-): Promise<string> {
+): Promise<string[]> {
   let ask = injected
   let close: (() => void) | undefined
   if (ask === undefined) {
@@ -107,12 +117,19 @@ async function prompt(
     )
     // Only offered when it is really there — a default that does not exist is
     // exactly the trap this whole flow exists to remove.
+    const [fallback] = DEFAULT_CONFIG.sourceDirs
     const suggestion =
-      (await inspect(DEFAULT_CONFIG.sourceDir)) === null ? DEFAULT_CONFIG.sourceDir : undefined
+      fallback !== undefined && (await inspect(fallback)) === null ? fallback : undefined
 
+    const accepted: string[] = []
     for (;;) {
-      const answer = await ask('Where are your flashcards?', suggestion)
+      const first = accepted.length === 0
+      const answer = first
+        ? await ask('Where are your flashcards?', suggestion)
+        : await ask('Another directory? (blank to finish)')
       if (answer === '') {
+        // The first answer is the collection; every later one is optional.
+        if (!first) return accepted
         out('A directory is needed. Ctrl-C to stop.')
         continue
       }
@@ -122,8 +139,16 @@ async function prompt(
         out(describe(problem, sourceDir))
         continue
       }
+      try {
+        // Nesting is refused here too, so the answer to it is another prompt
+        // rather than an error thrown after the whole conversation.
+        normalizeSourceDirs([...accepted, sourceDir])
+      } catch (error) {
+        out(error instanceof Error ? error.message : String(error))
+        continue
+      }
       await report(sourceDir, out)
-      return sourceDir
+      accepted.push(sourceDir)
     }
   } finally {
     close?.()

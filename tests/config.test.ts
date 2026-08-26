@@ -2,7 +2,13 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { defaultConfigPath, expandHome, readConfigFile, withDefaults } from '../src/config.js'
+import {
+  defaultConfigPath,
+  expandHome,
+  normalizeSourceDirs,
+  readConfigFile,
+  withDefaults,
+} from '../src/config.js'
 
 /*
  * Everything asserted here is a claim `docs/scheduling.md` makes in prose — the
@@ -64,30 +70,55 @@ describe('readConfigFile and withDefaults', () => {
 
   it('returns the documented defaults when there is no file', async () => {
     expect(withDefaults(await readConfigFile())).toEqual({
-      sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
+      sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 50,
       defaultDeckFilter: null,
     })
   })
 
   it('reads the file XDG_CONFIG_HOME points at', async () => {
-    await writeConfig({ sourceDir: '/decks', dailyLimit: 7, defaultDeckFilter: 'vocabulary' })
+    await writeConfig({ sourceDirs: ['/decks'], dailyLimit: 7, defaultDeckFilter: 'vocabulary' })
     expect(withDefaults(await readConfigFile())).toEqual({
-      sourceDir: '/decks',
+      sourceDirs: ['/decks'],
       dailyLimit: 7,
       defaultDeckFilter: 'vocabulary',
     })
   })
 
-  it('expands ~ in sourceDir', async () => {
-    await writeConfig({ sourceDir: '~/cards' })
-    expect(withDefaults(await readConfigFile()).sourceDir).toBe(path.join(os.homedir(), 'cards'))
+  it('expands ~ in every source directory', async () => {
+    await writeConfig({ sourceDirs: ['~/cards', '~/work/cards'] })
+    expect(withDefaults(await readConfigFile()).sourceDirs).toEqual([
+      path.join(os.homedir(), 'cards'),
+      path.join(os.homedir(), 'work', 'cards'),
+    ])
+  })
+
+  /* The single-directory spelling this program used to write. Reading it is what
+     stops an existing config from looking like one that never named a collection,
+     which would send the user back through onboarding. */
+  it('reads a legacy string sourceDir as a one-element list', async () => {
+    await writeConfig({ sourceDir: '~/cards', dailyLimit: 7 })
+    expect(withDefaults(await readConfigFile()).sourceDirs).toEqual([
+      path.join(os.homedir(), 'cards'),
+    ])
+  })
+
+  it('prefers sourceDirs when a file carries both spellings', async () => {
+    await writeConfig({ sourceDir: '/old', sourceDirs: ['/new'] })
+    expect(withDefaults(await readConfigFile()).sourceDirs).toEqual(['/new'])
+  })
+
+  it('falls back to the default when the list is empty', async () => {
+    await writeConfig({ sourceDirs: [] })
+    expect(withDefaults(await readConfigFile()).sourceDirs).toEqual([
+      path.join(os.homedir(), 'notes', 'flashcards'),
+    ])
   })
 
   it('fills every absent key from the defaults', async () => {
     await writeConfig({ dailyLimit: 7 })
     expect(withDefaults(await readConfigFile())).toEqual({
-      sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
+      sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 7,
       defaultDeckFilter: null,
     })
@@ -96,7 +127,7 @@ describe('readConfigFile and withDefaults', () => {
   it('ignores unknown keys', async () => {
     await writeConfig({ dailyLimit: 7, theme: 'dark', scheduler: { ease: 9 } })
     expect(withDefaults(await readConfigFile())).toEqual({
-      sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
+      sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 7,
       defaultDeckFilter: null,
     })
@@ -107,5 +138,38 @@ describe('readConfigFile and withDefaults', () => {
     await fs.writeFile(explicit, JSON.stringify({ dailyLimit: 3 }))
     await writeConfig({ dailyLimit: 99 })
     expect(withDefaults(await readConfigFile(explicit)).dailyLimit).toBe(3)
+  })
+})
+
+describe('normalizeSourceDirs', () => {
+  it('resolves and expands every directory, keeping the order given', () => {
+    expect(normalizeSourceDirs(['~/cards', '/decks/../decks'])).toEqual([
+      path.join(os.homedir(), 'cards'),
+      '/decks',
+    ])
+  })
+
+  it('collapses duplicates, including ones that only differ before resolution', () => {
+    expect(normalizeSourceDirs(['/decks', '/decks/', '/decks/./', '/other'])).toEqual([
+      '/decks',
+      '/other',
+    ])
+  })
+
+  /* A file under both roots gets two relative paths, so two card ids, so two
+     copies in the queue and two review records. There is no reading of that a
+     user wants, which is why it is refused rather than warned about. */
+  it('refuses directories that contain one another, naming both', () => {
+    expect(() => normalizeSourceDirs(['/notes', '/notes/flashcards'])).toThrow(
+      /\/notes contains \/notes\/flashcards/,
+    )
+    expect(() => normalizeSourceDirs(['/notes/flashcards', '/notes'])).toThrow('contains')
+  })
+
+  it('allows directories that merely share a prefix', () => {
+    expect(normalizeSourceDirs(['/notes/cards', '/notes/cards-work'])).toEqual([
+      '/notes/cards',
+      '/notes/cards-work',
+    ])
   })
 })

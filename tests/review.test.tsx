@@ -80,7 +80,6 @@ async function open(size?: { columns?: number; rows?: number }, overrides: Overr
       decks={[]}
       state={state}
       statePath={statePath}
-      rootDir="/notes"
       queueOptions={{}}
       deckFilter="algebra"
       images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}
@@ -422,7 +421,6 @@ describe('ReviewApp editing', () => {
         decks={parsed.deck ? [parsed.deck] : []}
         state={state}
         statePath={statePath}
-        rootDir={dir}
         queueOptions={{}}
         deckFilter={parsed.deck?.id}
         images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}

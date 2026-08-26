@@ -1,10 +1,17 @@
 import { promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { expandHome, readConfigFile, withDefaults } from './config.js'
+import {
+  expandHome,
+  normalizeSourceDirs,
+  readConfigFile,
+  sourceDirsFrom,
+  withDefaults,
+} from './config.js'
 import { detectImageSupport, isDisplayablePng, tmuxPassthroughEnabled } from './images.js'
 import { isInteractive, runInit } from './onboard.js'
-import { parseDirectory } from './parser.js'
+import { parseDirectories } from './parser.js'
 import { buildQueue, summarizeDecks } from './queue.js'
 import { defaultStatePath, loadState, saveState } from './state.js'
 import {
@@ -17,20 +24,25 @@ import {
 } from './transfer.js'
 import type { Flashcard, ParseResult } from './types.js'
 
-const USAGE = `Usage: leitner <command> [source-dir] [options]
+const USAGE = `Usage: leitner <command> [source-dir...] [options]
 
 Commands:
-  init [dir]       Record where your flashcards live, then exit
-  review [dir]     Interactive terminal review session
-  list [dir]       Print decks and card counts
-  stats [dir]      Print card/due/suspended counts and parse warnings
-  export [dir]     Write review state as a portable JSON bundle
-  import <file>    Merge a review-state bundle into the local state
+  init [dir...]      Record where your flashcards live, then exit
+  review [dir...]    Interactive terminal review session
+  list [dir...]      Print decks and card counts
+  stats [dir...]     Print card/due/suspended counts and parse warnings
+  export [dir...]    Write review state as a portable JSON bundle
+  import <file>      Merge a review-state bundle into the local state
 
 The first command that needs your flashcards asks where they are and writes
-~/.config/leitner/config.json. Pass [dir], or run "leitner init", to skip or redo that.
+~/.config/leitner/config.json. Pass [dir...], or run "leitner init", to skip or redo that.
+
+Several directories are read as one collection, in the order given, and the
+arguments replace the configured ones rather than adding to them. They may not
+contain one another. --deck matches a source path, so it also picks one of them.
 
 Options:
+  --add                   init: add the directories to the configured ones
   --deck <slug-or-path>   Only include decks matching slug or source path
   --type <type>           Only include cards whose frontmatter type is exactly this
   --untyped               Only include cards whose file declares no type
@@ -54,8 +66,9 @@ export type Command = 'init' | 'review' | 'list' | 'stats' | 'export' | 'import'
 
 export type CliOptions = {
   command: Command
-  sourceDir: string
-  /** Whether `sourceDir` was chosen by the user; 'default' is what onboarding reacts to. */
+  /** One collection, read in this order. Absolute, deduplicated, never nested. */
+  sourceDirs: string[]
+  /** Whether `sourceDirs` was chosen by the user; 'default' is what onboarding reacts to. */
   sourceDirOrigin: 'argument' | 'config' | 'default'
   statePath: string
   deck?: string
@@ -73,6 +86,8 @@ export type CliOptions = {
   dryRun: boolean
   /** `import` only: the bundle to read. */
   bundlePath?: string
+  /** `init` only: keep the configured directories and add to them. */
+  add: boolean
 }
 
 export async function parseCli(argv: string[]): Promise<CliOptions | null> {
@@ -88,6 +103,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
       limit: { type: 'string' },
       state: { type: 'string' },
       images: { type: 'boolean', default: false },
+      add: { type: 'boolean', default: false },
       out: { type: 'string' },
       prune: { type: 'boolean', default: false },
       merge: { type: 'string' },
@@ -122,13 +138,13 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
 
   const file = await readConfigFile()
   const config = withDefaults(file)
-  // `import` takes a bundle path where the other commands take a source dir.
-  const argument = command === 'import' ? undefined : positionals[1]
+  // `import` takes a bundle path where the other commands take source directories.
+  const argumentDirs = command === 'import' ? [] : positionals.slice(1)
   return {
     command: command as Command,
-    sourceDir: expandHome(argument ?? config.sourceDir),
+    sourceDirs: argumentDirs.length > 0 ? normalizeSourceDirs(argumentDirs) : config.sourceDirs,
     sourceDirOrigin:
-      argument !== undefined ? 'argument' : file?.sourceDir !== undefined ? 'config' : 'default',
+      argumentDirs.length > 0 ? 'argument' : sourceDirsFrom(file).length > 0 ? 'config' : 'default',
     statePath: values.state ? expandHome(values.state) : defaultStatePath(),
     deck: values.deck ?? config.defaultDeckFilter ?? undefined,
     type: values.type,
@@ -141,6 +157,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     prune: values.prune,
     merge: (values.merge ?? 'newer') as MergeStrategy,
     dryRun: values['dry-run'],
+    add: values.add,
     bundlePath: positionals[1] === undefined ? undefined : expandHome(positionals[1]),
   }
 }
@@ -159,6 +176,12 @@ export function filterCards(
   })
 }
 
+/** `expandHome` backwards, for a column whose width is its longest path. */
+function contractHome(dir: string): string {
+  const home = os.homedir()
+  return dir === home || dir.startsWith(`${home}${path.sep}`) ? `~${dir.slice(home.length)}` : dir
+}
+
 function printWarnings(parsed: ParseResult): void {
   for (const warning of parsed.warnings) {
     // The code names the conformance rule; the message is ours to word.
@@ -168,29 +191,39 @@ function printWarnings(parsed: ParseResult): void {
 }
 
 export async function runList(options: CliOptions): Promise<void> {
-  const parsed = await parseDirectory(options.sourceDir)
+  const parsed = await parseDirectories(options.sourceDirs)
   printWarnings(parsed)
 
   const cards = filterCards(parsed.cards, options)
   const counts = new Map<string, number>()
   for (const card of cards) {
-    counts.set(card.deckId, (counts.get(card.deckId) ?? 0) + 1)
+    counts.set(card.sourcePath, (counts.get(card.sourcePath) ?? 0) + 1)
   }
-  const decks = parsed.decks.filter((deck) => counts.has(deck.id))
+  const decks = parsed.decks.filter((deck) => counts.has(deck.sourcePath))
+
+  // A deck slug is only unique inside its own source directory, so the root
+  // earns a column as soon as there is a second one to confuse it with. It is
+  // written back with `~`, since a collection usually lives under home and the
+  // column is as wide as its longest entry.
+  const roots = options.sourceDirs.length > 1 ? options.sourceDirs.map(contractHome) : []
+  const rootWidth = Math.max(4, ...roots.map((root) => root.length))
+  const rootColumn = (root: string) => (roots.length === 0 ? '' : `${root.padEnd(rootWidth)}  `)
 
   const idWidth = Math.max(4, ...decks.map((d) => d.id.length))
-  process.stdout.write(`${'deck'.padEnd(idWidth)}  cards  type        title\n`)
+  process.stdout.write(`${rootColumn('root')}${'deck'.padEnd(idWidth)}  cards  type        title\n`)
   for (const deck of decks) {
-    const count = String(counts.get(deck.id) ?? 0).padStart(5)
+    const count = String(counts.get(deck.sourcePath) ?? 0).padStart(5)
     process.stdout.write(
-      `${deck.id.padEnd(idWidth)}  ${count}  ${(deck.type ?? '—').padEnd(10)}  ${deck.title}\n`,
+      `${rootColumn(contractHome(deck.rootDir))}${deck.id.padEnd(idWidth)}  ${count}  ${(
+        deck.type ?? '—'
+      ).padEnd(10)}  ${deck.title}\n`,
     )
   }
   process.stdout.write(`\n${decks.length} decks, ${cards.length} cards\n`)
 }
 
 export async function runStats(options: CliOptions): Promise<void> {
-  const parsed = await parseDirectory(options.sourceDir)
+  const parsed = await parseDirectories(options.sourceDirs)
   printWarnings(parsed)
 
   const cards = filterCards(parsed.cards, options)
@@ -206,7 +239,9 @@ export async function runStats(options: CliOptions): Promise<void> {
     suspended += summary.suspended
   }
 
-  process.stdout.write(`source:          ${options.sourceDir}\n`)
+  options.sourceDirs.forEach((sourceDir, index) => {
+    process.stdout.write(`${(index === 0 ? 'source:' : '').padEnd(17)}${sourceDir}\n`)
+  })
   process.stdout.write(`state:           ${options.statePath}\n`)
   // Count the decks the filter left, the way `list` does. `parsed.decks` is
   // every deck on disk, so an unfiltered count next to a filtered card total
@@ -224,7 +259,7 @@ export async function runExport(options: CliOptions): Promise<void> {
   let removed = 0
 
   if (options.prune) {
-    const parsed = await parseDirectory(options.sourceDir)
+    const parsed = await parseDirectories(options.sourceDirs)
     const pruned = pruneToCards(
       state,
       parsed.cards.map((card) => card.id),
@@ -289,7 +324,7 @@ export async function runImport(options: CliOptions): Promise<void> {
 }
 
 export async function runReview(options: CliOptions): Promise<void> {
-  const parsed = await parseDirectory(options.sourceDir)
+  const parsed = await parseDirectories(options.sourceDirs)
   printWarnings(parsed)
 
   // The deck filter is applied inside the TUI so the picker can still show
@@ -343,7 +378,6 @@ export async function runReview(options: CliOptions): Promise<void> {
     decks: parsed.decks,
     state,
     statePath: options.statePath,
-    rootDir: options.sourceDir,
     queueOptions: { dueOnly: options.dueOnly, newOnly: options.newOnly, limit: options.limit },
     deckFilter: options.deck,
     images: options.images
@@ -357,7 +391,7 @@ export async function runReview(options: CliOptions): Promise<void> {
  * First run: nothing on disk says where the flashcards are, so ask before the
  * command runs rather than letting it work against a directory nobody chose.
  */
-async function ensureSourceDir(options: CliOptions): Promise<CliOptions> {
+async function ensureSourceDirs(options: CliOptions): Promise<CliOptions> {
   // `import` reads a bundle and never touches the notes tree.
   if (options.sourceDirOrigin !== 'default' || options.command === 'import') return options
   if (!isInteractive()) {
@@ -367,17 +401,20 @@ async function ensureSourceDir(options: CliOptions): Promise<CliOptions> {
     )
   }
   const config = await runInit()
-  return { ...options, sourceDir: config.sourceDir, sourceDirOrigin: 'config' }
+  return { ...options, sourceDirs: config.sourceDirs, sourceDirOrigin: 'config' }
 }
 
 export async function main(argv: string[]): Promise<void> {
   const parsed = await parseCli(argv)
   if (!parsed) return
   if (parsed.command === 'init') {
-    await runInit(parsed.sourceDirOrigin === 'argument' ? { dir: parsed.sourceDir } : {})
+    await runInit({
+      ...(parsed.sourceDirOrigin === 'argument' ? { dirs: parsed.sourceDirs } : {}),
+      add: parsed.add,
+    })
     return
   }
-  const options = await ensureSourceDir(parsed)
+  const options = await ensureSourceDirs(parsed)
   switch (options.command) {
     case 'list':
       return runList(options)

@@ -44,7 +44,7 @@ afterEach(async () => {
 function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}): CliOptions {
   return {
     command,
-    sourceDir: fixtures,
+    sourceDirs: [fixtures],
     sourceDirOrigin: 'argument',
     statePath: path.join(dir, 'review-state.json'),
     untyped: false,
@@ -54,6 +54,7 @@ function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}
     prune: false,
     merge: 'newer',
     dryRun: false,
+    add: false,
     ...extra,
   }
 }
@@ -141,12 +142,44 @@ describe('parseCli', () => {
     expect((await parseCli(['review', '--limit', '3']))?.limit).toBe(3)
   })
 
-  it('takes sourceDir and defaultDeckFilter from the config unless a flag overrides', async () => {
-    await writeConfig({ sourceDir: '/decks', defaultDeckFilter: 'vocabulary-words' })
+  it('takes sourceDirs and defaultDeckFilter from the config unless a flag overrides', async () => {
+    await writeConfig({ sourceDirs: ['/decks'], defaultDeckFilter: 'vocabulary-words' })
     const fromConfig = await parseCli(['review'])
-    expect(fromConfig?.sourceDir).toBe('/decks')
+    expect(fromConfig?.sourceDirs).toEqual(['/decks'])
+    expect(fromConfig?.sourceDirOrigin).toBe('config')
     expect(fromConfig?.deck).toBe('vocabulary-words')
     expect((await parseCli(['review', '--deck', 'other']))?.deck).toBe('other')
+  })
+
+  it('reads every positional after the command as a source directory', async () => {
+    const parsed = await parseCli(['list', '/decks', '/work/cards'])
+    expect(parsed?.sourceDirs).toEqual(['/decks', '/work/cards'])
+    expect(parsed?.sourceDirOrigin).toBe('argument')
+  })
+
+  it('replaces the configured directories rather than adding to them', async () => {
+    await writeConfig({ sourceDirs: ['/decks', '/work/cards'] })
+    expect((await parseCli(['list', '/elsewhere']))?.sourceDirs).toEqual(['/elsewhere'])
+  })
+
+  it('refuses source directories that contain one another', async () => {
+    await expect(parseCli(['list', '/decks', '/decks/spanish'])).rejects.toThrow(
+      'must not contain one another',
+    )
+  })
+
+  // `import` spends its positional on the bundle, so there is none left to be a
+  // source directory, and the configured ones are what any later read would use.
+  it('keeps the bundle positional for import', async () => {
+    await writeConfig({ sourceDirs: ['/decks'] })
+    const parsed = await parseCli(['import', '/tmp/bundle.json'])
+    expect(parsed?.bundlePath).toBe('/tmp/bundle.json')
+    expect(parsed?.sourceDirs).toEqual(['/decks'])
+  })
+
+  it('reports a config with no directories as unconfigured, so onboarding fires', async () => {
+    await writeConfig({ dailyLimit: 7 })
+    expect((await parseCli(['list']))?.sourceDirOrigin).toBe('default')
   })
 })
 
@@ -164,6 +197,23 @@ describe('list command', () => {
     await runList(options('list', { deck: 'vocabulary-words' }))
     expect(stdout).toContain('1 decks, 1 cards')
   })
+
+  it('names the root of every deck once a second one is in play', async () => {
+    const other = path.join(dir, 'work')
+    await fs.mkdir(other, { recursive: true })
+    await fs.writeFile(path.join(other, 'spanish.md'), '# Spanish\n\n## Hola\n\n***\n\nhi\n')
+
+    await runList(options('list', { sourceDirs: [fixtures, other] }))
+    expect(stdout).toContain('root')
+    expect(stdout).toContain(other)
+    expect(stdout).toContain('6 decks, 9 cards')
+  })
+
+  // The column would be noise when there is nothing to disambiguate against.
+  it('leaves the root out with a single source directory', async () => {
+    await runList(options('list'))
+    expect(stdout).not.toContain(fixtures)
+  })
 })
 
 describe('stats command', () => {
@@ -175,6 +225,15 @@ describe('stats command', () => {
     expect(stdout).toContain('due cards:       0')
     expect(stdout).toContain('suspended cards: 0')
     expect(stdout).toContain('parse warnings:  2')
+  })
+
+  it('lists every source directory', async () => {
+    const other = path.join(dir, 'work')
+    await fs.mkdir(other, { recursive: true })
+
+    await runStats(options('stats', { sourceDirs: [fixtures, other] }))
+    expect(stdout).toContain(`source:          ${fixtures}`)
+    expect(stdout).toContain(`                 ${other}`)
   })
 
   it('counts the decks the filter left, not every deck on disk', async () => {
