@@ -43,13 +43,16 @@ them.
 
 The format describes one file. Finding the files is this project's business.
 
-- Cards come from a source directory (`sourceDir` in
-  `~/.config/leitner/config.json`, default `~/notes/flashcards`, or a
-  positional `dir` argument).
-- Every `**/*.md` under it is a candidate deck, recursively.
+- Cards come from one or more source directories (`sourceDirs` in
+  `~/.config/leitner/config.json`, default `~/notes/flashcards`, or positional
+  `dir` arguments, which replace the configured list).
+- Every `**/*.md` under each of them is a candidate deck, recursively.
 - Dotfiles and dot-directories are skipped. That is what lets `.images/` sit next
   to a deck holding attachments without being scanned itself.
-- Files are processed in sorted path order.
+- Directories are read in the order given, each in sorted path order.
+- A source directory may not contain another one. Every file under the inner
+  directory would otherwise be read once per root, and a card's identity is its
+  path relative to a root, so the same card would exist twice under two ids.
 
 ## Where the format leaves a choice
 
@@ -107,6 +110,14 @@ dashes and `a/b.md` collides with `a-b.md`.
 file. Review history — due date, interval, ease, lapse count, suspension — is
 keyed on that id and nothing else.
 
+`relativePath` is relative to the source directory the file was found under, and
+to that one alone — never to a common parent of several of them. That is what
+keeps every id unchanged when a directory is added to a collection. The cost is
+that a relative path is only unique inside its own root: two directories both
+holding `spanish.md` with the same first heading name one card id between them,
+so the two cards share one review record and grading one schedules the other.
+That is reported as a warning naming both files, and both cards are kept.
+
 The format guarantees the property this relies on: editing a card's body, its
 tags, or its front content below the heading MUST NOT change the card's identity
 (§5.2). What it does not protect against is a change to the heading or to the
@@ -122,6 +133,7 @@ card's position:
 | Inserting or deleting a card above it | **no** — every later card shifts |
 | Reordering cards | **no** |
 | Renaming or moving the deck file | **no** — the whole deck resets |
+| Moving a deck file between source directories | **no**, unless the path inside each is identical |
 
 Editing from inside a review session (`e`) is the exception: it pairs the cards
 before and after the edit and carries the records across, so a heading rename

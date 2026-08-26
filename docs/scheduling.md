@@ -83,15 +83,24 @@ as it was found. Quitting discards the stack; there is no undo across sessions.
 defaults, unknown keys are ignored, and every key has a flag that overrides it.
 
 The file is written by `leitner init`, which the first run that needs a
-`sourceDir` and has no answer for it invokes on your behalf. It is still
-optional: a hand-written file is read the same way, and a `dir` argument
-overrides it. `init` writes an absolute path, and rewrites only `sourceDir`.
+`sourceDirs` and has no answer for it invokes on your behalf. It is still
+optional: a hand-written file is read the same way, and `dir` arguments override
+it. `init` writes absolute paths, and rewrites only `sourceDirs`.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `sourceDir` | `~/notes/flashcards` | scanned when no `dir` argument is given; `~` is expanded |
+| `sourceDirs` | `["~/notes/flashcards"]` | scanned when no `dir` argument is given; `~` is expanded in each |
 | `dailyLimit` | `50` | queue cap for `review` when `--limit` is absent |
 | `defaultDeckFilter` | `null` | a standing `--deck`; `null` opens the deck picker |
+
+A plain string `sourceDir`, which older versions wrote, is read as a
+one-directory list. Nothing writes it any more.
+
+The directories are one collection: the queue mixes them, `--limit` caps the
+whole thing, and there are no per-directory parameters. They may not contain one
+another, and a card id is derived per directory, so two of them holding the same
+relative path share one review record — grading the card in one schedules the
+card in the other. `docs/format.md` has the derivation.
 
 ## Not here, on purpose
 

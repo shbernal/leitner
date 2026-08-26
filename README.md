@@ -36,15 +36,31 @@ pnpm build
 ## Usage
 
 ```bash
-leitner init   [dir]   # record where your flashcards live
-leitner list   [dir]   # decks and card counts
-leitner stats  [dir]   # totals, due/new/suspended, parse warnings
-leitner review [dir]   # interactive review session
-leitner export [dir]   # review state as a portable JSON bundle
-leitner import <file>  # merge a bundle into local state
+leitner init   [dir...]  # record where your flashcards live
+leitner list   [dir...]  # decks and card counts
+leitner stats  [dir...]  # totals, due/new/suspended, parse warnings
+leitner review [dir...]  # interactive review session
+leitner export [dir...]  # review state as a portable JSON bundle
+leitner import <file>    # merge a bundle into local state
 ```
 
-`dir` defaults to `sourceDir` from `~/.config/leitner/config.json`.
+`dir` defaults to `sourceDirs` from `~/.config/leitner/config.json`.
+
+### More than one directory
+
+Give as many directories as you like and they are read as one collection, in
+the order written. The arguments replace the configured directories rather than
+adding to them, so a one-off `leitner list ~/work/cards` studies that directory
+alone without touching the config.
+
+They may not contain one another: a file under two of them would be counted as
+two cards with two separate review histories, so that is refused rather than
+merged. Two directories holding the same relative path (`spanish.md` in both)
+are allowed, but those two cards then share one review record and grading one
+schedules the other; `list` and `stats` print a warning naming both files.
+
+`--deck` matches a source path as well as a deck slug, so it doubles as a way
+to study one of the directories: `leitner review --deck ~/work/cards`.
 
 ### First run
 
@@ -54,8 +70,10 @@ there so a typo does not pass for an empty collection. It then carries on with
 the command you asked for.
 
 `init` is the same question on demand — run it to move a collection, or give it
-the directory (`leitner init ~/notes/cards`) to answer without being asked.
-Every other key keeps its value.
+the directories (`leitner init ~/notes/cards ~/work/cards`) to answer without
+being asked. Asked interactively it keeps offering `Another directory?` until
+the answer is blank. `leitner init ~/work/cards --add` adds to the configured
+directories instead of replacing them. Every other key keeps its value.
 
 Nothing is written into the notes tree, then or ever. Passing `dir` skips the
 question, and so does any run whose stdin or stdout is not a terminal: with no
@@ -83,6 +101,7 @@ chmod +x ~/.local/bin/leitner
 ### Flags
 
 ```text
+--add                   init: add the directories instead of replacing them
 --deck <slug-or-path>   only decks matching slug or source path (skips the picker)
 --type <type>           frontmatter type, matched verbatim (the format defines no set)
 --untyped               only cards whose file declares no type

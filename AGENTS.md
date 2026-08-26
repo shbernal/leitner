@@ -17,6 +17,13 @@ Two things are sticky anyway, and neither is about compatibility with a consumer
   record on disk — a user loses their history and nothing tells them. Treat it as
   a format-level decision, not an implementation detail. `docs/format.md` is the
   only written account of the scheme; it moves with the code.
+  `relativePath` is relative to the one source directory the file was found
+  under, never to a common parent of the configured ones. Relativising against
+  anything shared is how a second directory would rename every card in the
+  first. It is also why a collision between two roots is warned about rather
+  than designed away, and why nested roots are refused outright.
+  `tests/parser.test.ts` holds the literal hashes; `parseDirectories` holds the
+  merge.
 - **The review state file.** `~/.local/share/leitner/review-state.json` is the
   user's data. A migration is fine; losing it is not.
 
@@ -33,7 +40,7 @@ Scheduling metadata goes in the state file. Never into the markdown.
 
 ```bash
 pnpm install
-pnpm test         # vitest, 14 files
+pnpm test         # vitest, 15 files
 pnpm typecheck    # tsc --noEmit over src *and* tests
 pnpm lint         # oxlint
 pnpm format:check # oxfmt --check
