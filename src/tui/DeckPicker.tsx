@@ -9,13 +9,20 @@ export type DeckPickerProps = {
   decks: Deck[]
   summaries: Map<string, DeckSummary>
   height: number
-  /** The decks to review: every listed deck for "All decks", otherwise just one. */
-  onSelect: (deckIds: string[]) => void
+  /**
+   * The decks to review, by source path: every listed deck for "All decks",
+   * otherwise just one. Paths rather than slugs, because two source directories
+   * can hold the same relative path and so name two files with one slug.
+   */
+  onSelect: (sourcePaths: string[]) => void
   onQuit: () => void
 }
 
 type Row = {
   id: string
+  /** The deck slug, and the path it came from: both are what `/` searches. */
+  slug: string
+  path: string
   label: string
   type: string
   summary: DeckSummary
@@ -46,20 +53,26 @@ export function DeckPicker({
   const rows = useMemo<Row[]>(() => {
     const deckRows: Row[] = decks
       .map((deck) => ({
-        id: deck.id,
+        id: deck.sourcePath,
+        slug: deck.id,
+        path: deck.sourcePath,
         label: deck.title,
         type: deck.type ?? '',
-        summary: summaries.get(deck.id) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
+        summary: summaries.get(deck.sourcePath) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
       }))
       .filter((row) => row.summary.total > 0)
 
     const needle = filter.trim().toLowerCase()
+    // The path is searchable so that one source directory can be picked out of
+    // several by typing part of it.
     const matched =
       needle === ''
         ? deckRows
         : deckRows.filter(
             (row) =>
-              row.id.toLowerCase().includes(needle) || row.label.toLowerCase().includes(needle),
+              row.slug.toLowerCase().includes(needle) ||
+              row.label.toLowerCase().includes(needle) ||
+              row.path.toLowerCase().includes(needle),
           )
 
     // An "All decks" row over nothing would offer an empty session, so drop it too.
@@ -68,6 +81,8 @@ export function DeckPicker({
     return [
       {
         id: ALL_DECKS,
+        slug: ALL_DECKS,
+        path: '',
         label: 'All decks',
         type: '',
         summary: totals(matched.map((r) => r.summary)),

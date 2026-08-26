@@ -1,9 +1,30 @@
+import { promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
-import { cardId, parseDirectory, parseFile, slugify } from '../src/parser.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cardId, parseDirectories, parseDirectory, parseFile, slugify } from '../src/parser.js'
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
+
+let temp: string
+
+beforeEach(async () => {
+  temp = await fs.mkdtemp(path.join(os.tmpdir(), 'leitner-parser-'))
+})
+
+afterEach(async () => {
+  await fs.rm(temp, { recursive: true, force: true })
+})
+
+/** A one-card deck, written at `relPath` under a fresh root. */
+async function writeRoot(name: string, relPath: string, heading: string): Promise<string> {
+  const root = path.join(temp, name)
+  const file = path.join(root, relPath)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, `# Deck\n\n## ${heading}\n\n***\n\nfact\n`, 'utf8')
+  return root
+}
 
 describe('parseFile', () => {
   it('parses a file with frontmatter into cards', async () => {
@@ -132,6 +153,63 @@ describe('parseDirectory', () => {
   it('throws on a root that is a file', async () => {
     await expect(parseDirectory(path.join(fixtures, 'with-frontmatter.md'))).rejects.toThrow(
       'not a directory',
+    )
+  })
+})
+
+describe('parseDirectories', () => {
+  it('reads every root in order and records which one each card came from', async () => {
+    const mine = await writeRoot('mine', 'algebra.md', 'Mine')
+    const theirs = await writeRoot('theirs', 'spanish.md', 'Theirs')
+
+    const result = await parseDirectories([mine, theirs])
+    expect(result.cards.map((card) => card.title)).toEqual(['Mine', 'Theirs'])
+    expect(result.cards.map((card) => card.rootDir)).toEqual([mine, theirs])
+    expect(result.decks.map((deck) => deck.rootDir)).toEqual([mine, theirs])
+    expect(result.warnings).toHaveLength(0)
+  })
+
+  /* The whole point of relativising against the root a file was found under: a
+     user who adds a second directory keeps the review history of the first. */
+  it('leaves ids identical to parsing that root on its own', async () => {
+    const mine = await writeRoot('mine', 'algebra.md', 'Mine')
+    const theirs = await writeRoot('theirs', 'spanish.md', 'Theirs')
+
+    const alone = await parseDirectory(mine)
+    const merged = await parseDirectories([mine, theirs])
+    expect(merged.cards.slice(0, 1).map((card) => card.id)).toEqual(
+      alone.cards.map((card) => card.id),
+    )
+  })
+
+  it('names a card id two roots collide on, and keeps both cards', async () => {
+    const mine = await writeRoot('mine', 'spanish.md', 'Hola')
+    const theirs = await writeRoot('theirs', 'spanish.md', 'Hola')
+
+    const result = await parseDirectories([mine, theirs])
+    expect(result.cards).toHaveLength(2)
+    expect(result.cards[0]?.id).toBe(result.cards[1]?.id)
+
+    const warning = result.warnings[0]
+    expect(result.warnings).toHaveLength(1)
+    expect(warning?.sourcePath).toBe(path.join(theirs, 'spanish.md'))
+    expect(warning?.message).toContain(path.join(mine, 'spanish.md'))
+    expect(warning?.code).toBeNull()
+  })
+
+  it('does not collide when the same file name sits at different relative paths', async () => {
+    const mine = await writeRoot('mine', 'spanish.md', 'Hola')
+    const theirs = await writeRoot('theirs', 'languages/spanish.md', 'Hola')
+
+    const result = await parseDirectories([mine, theirs])
+    expect(new Set(result.cards.map((card) => card.id)).size).toBe(2)
+    expect(result.warnings).toHaveLength(0)
+  })
+
+  it('refuses a missing root rather than reporting an empty collection', async () => {
+    const mine = await writeRoot('mine', 'algebra.md', 'Mine')
+    await expect(parseDirectories([mine, path.join(temp, 'gone')])).rejects.toThrow(
+      'no such directory',
     )
   })
 })

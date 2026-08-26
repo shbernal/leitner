@@ -59,7 +59,12 @@ export type DeckSummary = {
   suspended: number
 }
 
-/** Per-deck counts for the deck picker and `stats`. */
+/**
+ * Per-deck counts for the deck picker and `stats`, keyed by source path. Two
+ * source directories can hold the same relative path and so produce the same
+ * deck slug; keying on the slug would merge those two files into one row
+ * carrying both their counts.
+ */
 export function summarizeDecks(
   cards: Flashcard[],
   state: ReviewState,
@@ -67,10 +72,10 @@ export function summarizeDecks(
 ): Map<string, DeckSummary> {
   const summaries = new Map<string, DeckSummary>()
   for (const card of cards) {
-    let summary = summaries.get(card.deckId)
+    let summary = summaries.get(card.sourcePath)
     if (!summary) {
       summary = { total: 0, due: 0, fresh: 0, suspended: 0 }
-      summaries.set(card.deckId, summary)
+      summaries.set(card.sourcePath, summary)
     }
     summary.total += 1
 

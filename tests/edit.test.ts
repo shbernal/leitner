@@ -9,6 +9,7 @@ function makeCard(id: string, title: string): Flashcard {
     deckId: 'deck',
     deckTitle: 'Deck',
     sourcePath: '/notes/deck.md',
+    rootDir: '/notes',
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',

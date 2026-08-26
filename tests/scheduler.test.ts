@@ -9,6 +9,7 @@ const card: Flashcard = {
   deckId: 'deck',
   deckTitle: 'Deck',
   sourcePath: '/tmp/deck.md',
+  rootDir: '/tmp',
   sourceMtimeMs: 0,
   sourceLine: 1,
   type: 'content',

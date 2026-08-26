@@ -13,6 +13,12 @@ export type Flashcard = {
   deckId: string
   deckTitle: string
   sourcePath: string
+  /**
+   * The configured source directory this file was found under. The id above is
+   * derived from the path relative to *this* root, so re-deriving it after an
+   * edit needs the same root the card was first parsed with.
+   */
+  rootDir: string
   sourceMtimeMs: number
   /** 1-based line of the card's `##` heading in the source file, for `$EDITOR`. */
   sourceLine: number
@@ -40,6 +46,7 @@ export type Deck = {
   id: string
   title: string
   sourcePath: string
+  rootDir: string
   type?: string
   cardCount: number
 }

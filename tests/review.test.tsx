@@ -17,6 +17,7 @@ function makeCard(id: string, title: string, body: string): Flashcard {
     deckId: 'algebra',
     deckTitle: 'Algebra',
     sourcePath: '/notes/algebra.md',
+    rootDir: '/notes',
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',

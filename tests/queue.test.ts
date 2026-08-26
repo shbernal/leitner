@@ -11,6 +11,7 @@ function makeCard(id: string): Flashcard {
     deckId: 'deck',
     deckTitle: 'Deck',
     sourcePath: '/tmp/deck.md',
+    rootDir: '/tmp',
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',
@@ -73,7 +74,7 @@ describe('buildQueue', () => {
 describe('summarizeDecks', () => {
   it('counts due, new and suspended cards per deck', () => {
     const cards = ['a', 'b', 'c', 'd'].map(makeCard)
-    const other = { ...makeCard('e'), deckId: 'other' }
+    const other = { ...makeCard('e'), deckId: 'other', sourcePath: '/tmp/other.md' }
     const state = emptyState()
     state.records['a'] = makeRecord('a', '2026-06-10T12:00:00.000Z') // due
     state.records['b'] = makeRecord('b', '2026-07-01T12:00:00.000Z') // not due
@@ -81,8 +82,19 @@ describe('summarizeDecks', () => {
     // d is new
 
     const summaries = summarizeDecks([...cards, other], state, now)
-    expect(summaries.get('deck')).toEqual({ total: 4, due: 1, fresh: 1, suspended: 1 })
-    expect(summaries.get('other')).toEqual({ total: 1, due: 0, fresh: 1, suspended: 0 })
+    expect(summaries.get('/tmp/deck.md')).toEqual({ total: 4, due: 1, fresh: 1, suspended: 1 })
+    expect(summaries.get('/tmp/other.md')).toEqual({ total: 1, due: 0, fresh: 1, suspended: 0 })
+  })
+
+  // Two source directories can hold the same relative path, so the slug is not
+  // an identity. Counting by it would show one row holding both files' cards.
+  it('keeps two files with the same deck slug apart', () => {
+    const mine = makeCard('a')
+    const theirs = { ...makeCard('b'), sourcePath: '/elsewhere/deck.md', rootDir: '/elsewhere' }
+
+    const summaries = summarizeDecks([mine, theirs], emptyState(), now)
+    expect(summaries.size).toBe(2)
+    expect(summaries.get('/elsewhere/deck.md')?.total).toBe(1)
   })
 
   it('omits decks with no cards', () => {

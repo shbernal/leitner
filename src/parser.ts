@@ -82,6 +82,7 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
       deckId,
       deckTitle,
       sourcePath,
+      rootDir,
       sourceMtimeMs: stat.mtimeMs,
       sourceLine: card.headingLine,
       ...(type === undefined ? {} : { type }),
@@ -128,6 +129,7 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
     id: deckId,
     title: deckTitle,
     sourcePath,
+    rootDir,
     ...(type === undefined ? {} : { type }),
     cardCount: cards.length,
   }
@@ -175,6 +177,49 @@ export async function parseDirectory(rootDir: string): Promise<ParseResult> {
       })
     }
   }
+
+  return { decks, cards, warnings }
+}
+
+/**
+ * Every root, in the order given. A card's id is derived from its path relative
+ * to the root it was found under, never to a common ancestor of the roots — that
+ * is what keeps ids stable when a second directory is added to an existing
+ * collection.
+ */
+export async function parseDirectories(rootDirs: string[]): Promise<ParseResult> {
+  const parsed = await Promise.all(rootDirs.map((rootDir) => parseDirectory(rootDir)))
+
+  const decks: Deck[] = []
+  const cards: Flashcard[] = []
+  const warnings: ParseWarning[] = []
+  for (const result of parsed) {
+    decks.push(...result.decks)
+    cards.push(...result.cards)
+    warnings.push(...result.warnings)
+  }
+
+  /* Relative paths are only unique within a root, so two roots holding the same
+     path and heading produce one id for two cards, which then share one review
+     record. Both are kept — dropping a card silently is worse than a schedule
+     the user can see is shared — but the collision is named. */
+  const firstSeen = new Map<string, Flashcard>()
+  cards.forEach((card, cardIndex) => {
+    const original = firstSeen.get(card.id)
+    if (original === undefined) {
+      firstSeen.set(card.id, card)
+      return
+    }
+    warnings.push({
+      sourcePath: card.sourcePath,
+      message: `same card id as ${original.sourcePath}, because both are "${path.relative(
+        card.rootDir,
+        card.sourcePath,
+      )}" inside their own source directory; the two cards share one review record`,
+      code: null,
+      cardIndex,
+    })
+  })
 
   return { decks, cards, warnings }
 }

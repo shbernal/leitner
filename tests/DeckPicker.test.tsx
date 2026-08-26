@@ -6,7 +6,14 @@ import type { Deck } from '../src/types.js'
 import { KEY, renderTui, type TuiHarness } from './helpers/tui.js'
 
 function makeDeck(id: string, title: string): Deck {
-  return { id, title, sourcePath: `/notes/${id}.md`, type: 'content', cardCount: 1 }
+  return {
+    id,
+    title,
+    sourcePath: `/notes/${id}.md`,
+    rootDir: '/notes',
+    type: 'content',
+    cardCount: 1,
+  }
 }
 
 const decks = [
@@ -16,9 +23,9 @@ const decks = [
 ]
 
 const summaries = new Map<string, DeckSummary>([
-  ['algebra', { total: 10, due: 3, fresh: 2, suspended: 0 }],
-  ['botany', { total: 5, due: 1, fresh: 4, suspended: 1 }],
-  ['chemistry', { total: 7, due: 0, fresh: 7, suspended: 0 }],
+  ['/notes/algebra.md', { total: 10, due: 3, fresh: 2, suspended: 0 }],
+  ['/notes/botany.md', { total: 5, due: 1, fresh: 4, suspended: 1 }],
+  ['/notes/chemistry.md', { total: 7, due: 0, fresh: 7, suspended: 0 }],
 ])
 
 let ui: TuiHarness | undefined
@@ -29,7 +36,7 @@ afterEach(() => {
 })
 
 async function open(overrides: Partial<React.ComponentProps<typeof DeckPicker>> = {}) {
-  const onSelect = vi.fn<(deckIds: string[]) => void>()
+  const onSelect = vi.fn<(sourcePaths: string[]) => void>()
   const onQuit = vi.fn<() => void>()
   ui = await renderTui(
     <DeckPicker
@@ -90,13 +97,17 @@ describe('DeckPicker', () => {
     const { ui, onSelect } = await open()
     await ui.press('j')
     await ui.press(KEY.enter)
-    expect(onSelect).toHaveBeenCalledWith(['algebra'])
+    expect(onSelect).toHaveBeenCalledWith(['/notes/algebra.md'])
   })
 
   it('selects every deck when "All decks" is chosen', async () => {
     const { ui, onSelect } = await open()
     await ui.press(KEY.space)
-    expect(onSelect).toHaveBeenCalledWith(['algebra', 'botany', 'chemistry'])
+    expect(onSelect).toHaveBeenCalledWith([
+      '/notes/algebra.md',
+      '/notes/botany.md',
+      '/notes/chemistry.md',
+    ])
   })
 
   it('limits "All decks" to the decks left by the filter', async () => {
@@ -108,7 +119,7 @@ describe('DeckPicker', () => {
     // "a" matches Algebra and Botany, so chemistry stays out of the session.
     expect(ui.frame()).toMatch(/All decks\s+4 due\s+6 new\s+15 total/)
     await ui.press(KEY.enter)
-    expect(onSelect).toHaveBeenCalledWith(['algebra', 'botany'])
+    expect(onSelect).toHaveBeenCalledWith(['/notes/algebra.md', '/notes/botany.md'])
   })
 
   it('quits on q and on escape', async () => {
@@ -179,10 +190,36 @@ describe('DeckPicker', () => {
     expect(frame).not.toContain('All decks')
   })
 
+  /* Two source directories can hold the same relative path, so the slug is not
+     an identity. Keyed on it, these two files would be one row. */
+  it('lists two decks that share a slug as two rows', async () => {
+    const mine = { ...makeDeck('spanish', 'Spanish'), sourcePath: '/notes/spanish.md' }
+    const theirs = {
+      ...makeDeck('spanish', 'Spanish'),
+      sourcePath: '/work/spanish.md',
+      rootDir: '/work',
+    }
+    const { ui, onSelect } = await open({
+      decks: [mine, theirs],
+      summaries: new Map<string, DeckSummary>([
+        ['/notes/spanish.md', { total: 10, due: 3, fresh: 2, suspended: 0 }],
+        ['/work/spanish.md', { total: 4, due: 1, fresh: 3, suspended: 0 }],
+      ]),
+    })
+    expect(ui.frame()).toContain('2 decks')
+
+    // The path is what tells them apart, so it is what the filter has to match.
+    await ui.press('/')
+    await ui.type('work')
+    await ui.press(KEY.enter)
+    await ui.press(KEY.enter)
+    expect(onSelect).toHaveBeenCalledWith(['/work/spanish.md'])
+  })
+
   it('hides decks that have no cards', async () => {
     const { ui } = await open({
       summaries: new Map<string, DeckSummary>([
-        ['algebra', { total: 10, due: 3, fresh: 2, suspended: 0 }],
+        ['/notes/algebra.md', { total: 10, due: 3, fresh: 2, suspended: 0 }],
       ]),
     })
     const frame = ui.frame()

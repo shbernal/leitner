@@ -112,9 +112,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 
   const summaries = useMemo(() => summarizeDecks(allCards, state), [allCards, state])
 
-  const selectDeck = (deckIds: string[]) => {
-    const scope = new Set(deckIds)
-    const scoped = allCards.filter((card) => scope.has(card.deckId))
+  const selectDeck = (sourcePaths: string[]) => {
+    const scope = new Set(sourcePaths)
+    const scoped = allCards.filter((card) => scope.has(card.sourcePath))
     const built = buildQueue(scoped, state, queueOptions)
     setPicked(true)
     setQueue(built)
