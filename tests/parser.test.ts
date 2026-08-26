@@ -122,6 +122,18 @@ describe('parseDirectory', () => {
     expect(result.cards).toHaveLength(8)
     expect(result.warnings).toHaveLength(2)
   })
+
+  // A missing root is a broken configuration, not an empty collection. Without
+  // this it globs to nothing and every command reports a collection of zero.
+  it('throws on a root that does not exist', async () => {
+    await expect(parseDirectory(path.join(fixtures, 'nope'))).rejects.toThrow('no such directory')
+  })
+
+  it('throws on a root that is a file', async () => {
+    await expect(parseDirectory(path.join(fixtures, 'with-frontmatter.md'))).rejects.toThrow(
+      'not a directory',
+    )
+  })
 })
 
 /*

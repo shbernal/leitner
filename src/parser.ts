@@ -135,6 +135,20 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
 }
 
 export async function parseDirectory(rootDir: string): Promise<ParseResult> {
+  /* fast-glob answers an absent cwd with an empty list, so without this a stale
+     config or a mistyped path reads as "your collection is empty" — `list` prints
+     0 decks and `review` congratulates you on being done. */
+  let stat
+  try {
+    stat = await fs.stat(rootDir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`no such directory: ${rootDir}`)
+    }
+    throw error
+  }
+  if (!stat.isDirectory()) throw new Error(`not a directory: ${rootDir}`)
+
   const files = await fastGlob('**/*.md', {
     cwd: rootDir,
     absolute: true,
