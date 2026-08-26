@@ -36,6 +36,7 @@ pnpm build
 ## Usage
 
 ```bash
+leitner init   [dir]   # record where your flashcards live
 leitner list   [dir]   # decks and card counts
 leitner stats  [dir]   # totals, due/new/suspended, parse warnings
 leitner review [dir]   # interactive review session
@@ -43,8 +44,23 @@ leitner export [dir]   # review state as a portable JSON bundle
 leitner import <file>  # merge a bundle into local state
 ```
 
-`dir` defaults to `sourceDir` from `~/.config/leitner/config.json`,
-falling back to `~/notes/flashcards`.
+`dir` defaults to `sourceDir` from `~/.config/leitner/config.json`.
+
+### First run
+
+The first command that needs your flashcards and cannot find that setting asks
+for the directory and writes the config file, reporting how many cards it found
+there so a typo does not pass for an empty collection. It then carries on with
+the command you asked for.
+
+`init` is the same question on demand — run it to move a collection, or give it
+the directory (`leitner init ~/notes/cards`) to answer without being asked.
+Every other key keeps its value.
+
+Nothing is written into the notes tree, then or ever. Passing `dir` skips the
+question, and so does any run whose stdin or stdout is not a terminal: with no
+directory configured, those fail with a message rather than block on a prompt
+nobody can see.
 
 ### Local command
 

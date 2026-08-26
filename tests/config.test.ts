@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { defaultConfigPath, expandHome, loadConfig } from '../src/config.js'
+import { defaultConfigPath, expandHome, readConfigFile, withDefaults } from '../src/config.js'
 
 /*
  * Everything asserted here is a claim `docs/scheduling.md` makes in prose — the
@@ -55,9 +55,15 @@ describe('expandHome', () => {
   })
 })
 
-describe('loadConfig', () => {
+describe('readConfigFile and withDefaults', () => {
+  it('reports an absent file as null, so onboarding can tell it from an empty one', async () => {
+    expect(await readConfigFile()).toBeNull()
+    await writeConfig({})
+    expect(await readConfigFile()).toEqual({})
+  })
+
   it('returns the documented defaults when there is no file', async () => {
-    expect(await loadConfig()).toEqual({
+    expect(withDefaults(await readConfigFile())).toEqual({
       sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
       dailyLimit: 50,
       defaultDeckFilter: null,
@@ -66,7 +72,7 @@ describe('loadConfig', () => {
 
   it('reads the file XDG_CONFIG_HOME points at', async () => {
     await writeConfig({ sourceDir: '/decks', dailyLimit: 7, defaultDeckFilter: 'vocabulary' })
-    expect(await loadConfig()).toEqual({
+    expect(withDefaults(await readConfigFile())).toEqual({
       sourceDir: '/decks',
       dailyLimit: 7,
       defaultDeckFilter: 'vocabulary',
@@ -75,12 +81,12 @@ describe('loadConfig', () => {
 
   it('expands ~ in sourceDir', async () => {
     await writeConfig({ sourceDir: '~/cards' })
-    expect((await loadConfig()).sourceDir).toBe(path.join(os.homedir(), 'cards'))
+    expect(withDefaults(await readConfigFile()).sourceDir).toBe(path.join(os.homedir(), 'cards'))
   })
 
   it('fills every absent key from the defaults', async () => {
     await writeConfig({ dailyLimit: 7 })
-    expect(await loadConfig()).toEqual({
+    expect(withDefaults(await readConfigFile())).toEqual({
       sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
       dailyLimit: 7,
       defaultDeckFilter: null,
@@ -89,7 +95,7 @@ describe('loadConfig', () => {
 
   it('ignores unknown keys', async () => {
     await writeConfig({ dailyLimit: 7, theme: 'dark', scheduler: { ease: 9 } })
-    expect(await loadConfig()).toEqual({
+    expect(withDefaults(await readConfigFile())).toEqual({
       sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
       dailyLimit: 7,
       defaultDeckFilter: null,
@@ -100,6 +106,6 @@ describe('loadConfig', () => {
     const explicit = path.join(dir, 'elsewhere.json')
     await fs.writeFile(explicit, JSON.stringify({ dailyLimit: 3 }))
     await writeConfig({ dailyLimit: 99 })
-    expect((await loadConfig(explicit)).dailyLimit).toBe(3)
+    expect(withDefaults(await readConfigFile(explicit)).dailyLimit).toBe(3)
   })
 })

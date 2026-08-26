@@ -118,10 +118,17 @@ them:
 
 ## Testing the CLI
 
-`parseCli` calls `loadConfig()` with no argument, so there is no injection point
-for the config it reads. The tests set `XDG_CONFIG_HOME` to a temp directory and
-write `leitner/config.json` under it — chosen over widening the signature,
-because the production code gains nothing from the parameter.
+`parseCli` calls `readConfigFile()` with no argument, so there is no injection
+point for the config it reads. The tests set `XDG_CONFIG_HOME` to a temp
+directory and write `leitner/config.json` under it — chosen over widening the
+signature, because the production code gains nothing from the parameter. The
+same trick covers the first-run path in `tests/onboard.test.ts`, where a temp
+`XDG_CONFIG_HOME` is what makes "no config file" true.
+
+`runInit` takes an `ask`, so onboarding is driven without a terminal — the
+readline interface is only built when nothing is injected. The trigger itself
+needs no injection: stdin is not a tty under vitest, so a `main()` call with no
+config exercises the non-interactive refusal as it stands.
 
 `tests/parser.test.ts` asserts **literal sha1 values** for card ids. That is the
 point: `docs/format.md` calls the scheme sticky, and a hard-coded hash is what

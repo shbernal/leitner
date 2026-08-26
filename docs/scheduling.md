@@ -82,6 +82,11 @@ as it was found. Quitting discards the stack; there is no undo across sessions.
 `~/.config/leitner/config.json`, honouring `XDG_CONFIG_HOME`. Missing file means
 defaults, unknown keys are ignored, and every key has a flag that overrides it.
 
+The file is written by `leitner init`, which the first run that needs a
+`sourceDir` and has no answer for it invokes on your behalf. It is still
+optional: a hand-written file is read the same way, and a `dir` argument
+overrides it. `init` writes an absolute path, and rewrites only `sourceDir`.
+
 | Key | Default | Effect |
 | --- | --- | --- |
 | `sourceDir` | `~/notes/flashcards` | scanned when no `dir` argument is given; `~` is expanded |

@@ -1,8 +1,9 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { expandHome, loadConfig } from './config.js'
+import { expandHome, readConfigFile, withDefaults } from './config.js'
 import { detectImageSupport, isDisplayablePng, tmuxPassthroughEnabled } from './images.js'
+import { isInteractive, runInit } from './onboard.js'
 import { parseDirectory } from './parser.js'
 import { buildQueue, summarizeDecks } from './queue.js'
 import { defaultStatePath, loadState, saveState } from './state.js'
@@ -19,11 +20,15 @@ import type { Flashcard, ParseResult } from './types.js'
 const USAGE = `Usage: leitner <command> [source-dir] [options]
 
 Commands:
+  init [dir]       Record where your flashcards live, then exit
   review [dir]     Interactive terminal review session
   list [dir]       Print decks and card counts
   stats [dir]      Print card/due/suspended counts and parse warnings
   export [dir]     Write review state as a portable JSON bundle
   import <file>    Merge a review-state bundle into the local state
+
+The first command that needs your flashcards asks where they are and writes
+~/.config/leitner/config.json. Pass [dir], or run "leitner init", to skip or redo that.
 
 Options:
   --deck <slug-or-path>   Only include decks matching slug or source path
@@ -45,11 +50,13 @@ Review keys:
   e edit in $EDITOR · / search · i image preview · q quit
 `
 
-export type Command = 'review' | 'list' | 'stats' | 'export' | 'import'
+export type Command = 'init' | 'review' | 'list' | 'stats' | 'export' | 'import'
 
 export type CliOptions = {
   command: Command
   sourceDir: string
+  /** Whether `sourceDir` was chosen by the user; 'default' is what onboarding reacts to. */
+  sourceDirOrigin: 'argument' | 'config' | 'default'
   statePath: string
   deck?: string
   /** Matched against the frontmatter `type` verbatim; the format defines no set. */
@@ -94,7 +101,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     process.stdout.write(USAGE)
     return null
   }
-  if (!['review', 'list', 'stats', 'export', 'import'].includes(command)) {
+  if (!['init', 'review', 'list', 'stats', 'export', 'import'].includes(command)) {
     throw new Error(`unknown command: ${command}\n\n${USAGE}`)
   }
   // `type` is a user extension the format deliberately leaves undefined, so there is
@@ -113,13 +120,15 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     throw new Error('import needs a bundle path: leitner import <file>')
   }
 
-  const config = await loadConfig()
+  const file = await readConfigFile()
+  const config = withDefaults(file)
+  // `import` takes a bundle path where the other commands take a source dir.
+  const argument = command === 'import' ? undefined : positionals[1]
   return {
     command: command as Command,
-    // `import` takes a bundle path where the other commands take a source dir.
-    sourceDir: expandHome(
-      command === 'import' ? config.sourceDir : (positionals[1] ?? config.sourceDir),
-    ),
+    sourceDir: expandHome(argument ?? config.sourceDir),
+    sourceDirOrigin:
+      argument !== undefined ? 'argument' : file?.sourceDir !== undefined ? 'config' : 'default',
     statePath: values.state ? expandHome(values.state) : defaultStatePath(),
     deck: values.deck ?? config.defaultDeckFilter ?? undefined,
     type: values.type,
@@ -344,9 +353,31 @@ export async function runReview(options: CliOptions): Promise<void> {
   })
 }
 
+/**
+ * First run: nothing on disk says where the flashcards are, so ask before the
+ * command runs rather than letting it work against a directory nobody chose.
+ */
+async function ensureSourceDir(options: CliOptions): Promise<CliOptions> {
+  // `import` reads a bundle and never touches the notes tree.
+  if (options.sourceDirOrigin !== 'default' || options.command === 'import') return options
+  if (!isInteractive()) {
+    throw new Error(
+      'no flashcard directory configured, and no terminal to ask on.\n' +
+        `Pass one as an argument, or run: leitner init <dir>`,
+    )
+  }
+  const config = await runInit()
+  return { ...options, sourceDir: config.sourceDir, sourceDirOrigin: 'config' }
+}
+
 export async function main(argv: string[]): Promise<void> {
-  const options = await parseCli(argv)
-  if (!options) return
+  const parsed = await parseCli(argv)
+  if (!parsed) return
+  if (parsed.command === 'init') {
+    await runInit(parsed.sourceDirOrigin === 'argument' ? { dir: parsed.sourceDir } : {})
+    return
+  }
+  const options = await ensureSourceDir(parsed)
   switch (options.command) {
     case 'list':
       return runList(options)
@@ -358,5 +389,7 @@ export async function main(argv: string[]): Promise<void> {
       return runImport(options)
     case 'review':
       return runReview(options)
+    case 'init':
+      return
   }
 }

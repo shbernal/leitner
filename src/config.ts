@@ -19,24 +19,45 @@ export function defaultConfigPath(): string {
   return path.join(configHome, 'leitner', 'config.json')
 }
 
-const DEFAULT_CONFIG: AppConfig = {
+export const DEFAULT_CONFIG: AppConfig = {
   sourceDir: path.join(os.homedir(), 'notes', 'flashcards'),
   dailyLimit: 50,
   defaultDeckFilter: null,
 }
 
-export async function loadConfig(configPath: string = defaultConfigPath()): Promise<AppConfig> {
+/**
+ * The file as written, or null when there is none. The distinction is the whole
+ * reason this is separate from `withDefaults`: first-run onboarding turns on
+ * whether the user has ever answered, which a defaults-filled config cannot say.
+ */
+export async function readConfigFile(
+  configPath: string = defaultConfigPath(),
+): Promise<Partial<AppConfig> | null> {
   let raw: string
   try {
     raw = await fs.readFile(configPath, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ...DEFAULT_CONFIG }
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
   }
-  const parsed = JSON.parse(raw) as Partial<AppConfig>
+  return JSON.parse(raw) as Partial<AppConfig>
+}
+
+export function withDefaults(parsed: Partial<AppConfig> | null): AppConfig {
   return {
-    sourceDir: expandHome(parsed.sourceDir ?? DEFAULT_CONFIG.sourceDir),
-    dailyLimit: parsed.dailyLimit ?? DEFAULT_CONFIG.dailyLimit,
-    defaultDeckFilter: parsed.defaultDeckFilter ?? DEFAULT_CONFIG.defaultDeckFilter,
+    sourceDir: expandHome(parsed?.sourceDir ?? DEFAULT_CONFIG.sourceDir),
+    dailyLimit: parsed?.dailyLimit ?? DEFAULT_CONFIG.dailyLimit,
+    defaultDeckFilter: parsed?.defaultDeckFilter ?? DEFAULT_CONFIG.defaultDeckFilter,
   }
+}
+
+/**
+ * Written the way the state file is — temp file then rename — because a config
+ * half-written by an interrupted `init` would fail to parse on every later run.
+ */
+export async function writeConfig(configPath: string, config: AppConfig): Promise<void> {
+  await fs.mkdir(path.dirname(configPath), { recursive: true })
+  const tmpPath = `${configPath}.tmp`
+  await fs.writeFile(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
+  await fs.rename(tmpPath, configPath)
 }

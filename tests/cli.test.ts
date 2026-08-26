@@ -45,6 +45,7 @@ function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}
   return {
     command,
     sourceDir: fixtures,
+    sourceDirOrigin: 'argument',
     statePath: path.join(dir, 'review-state.json'),
     untyped: false,
     dueOnly: false,
