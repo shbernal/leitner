@@ -148,8 +148,10 @@ the normal screen once it exits.
 
 ### Editing a card
 
-`e` hands the terminal to `$VISUAL`, `$EDITOR`, or `vi`, opened on the card's
-`##` heading in its source file. Editors whose line syntax is known get taken
+`e` hands the terminal to `editor` from the config, or failing that `$VISUAL`,
+`$EDITOR`, or `vi`, opened on the card's `##` heading in its source file. The
+config key is a command line, the way the variables are, so a setting of
+`"editor": "code --wait"` works. Editors whose line syntax is known get taken
 there directly (`+N` for the vi and emacs families, `path:line` for helix,
 `--goto` for VS Code); anything else opens at the top of the file. Editors that
 detach by default are launched with `--wait` so the session waits for the file

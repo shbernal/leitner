@@ -56,9 +56,20 @@ function baseName(command: string): string {
   return path.basename(command).replace(/\.exe$/i, '')
 }
 
-export function editorFromEnv(env: NodeJS.ProcessEnv = process.env): string {
-  const configured = env['VISUAL'] ?? env['EDITOR'] ?? ''
-  return configured.trim() === '' ? FALLBACK_EDITOR : configured
+/**
+ * The config's `editor` first, then `$VISUAL`, `$EDITOR`, and `vi`. Config wins
+ * over the environment because it is the answer to "which editor for this
+ * program", where `$EDITOR` is only a machine-wide default; a user who sets the
+ * key has already said the global one is not what they want here.
+ */
+export function resolveEditor(
+  configured?: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  for (const candidate of [configured ?? '', env['VISUAL'] ?? '', env['EDITOR'] ?? '']) {
+    if (candidate.trim() !== '') return candidate
+  }
+  return FALLBACK_EDITOR
 }
 
 /**
@@ -93,26 +104,24 @@ export function resolveEditorCommand(editor: string, file: string, line?: number
 }
 
 /**
- * Run $EDITOR against the file, inheriting the terminal. The caller is
- * responsible for handing the terminal over first (Ink's `suspendTerminal`).
+ * Run `editor` against the file, inheriting the terminal. The command is passed
+ * in already resolved so the caller decides between config and environment. The
+ * caller is also responsible for handing the terminal over first (Ink's
+ * `suspendTerminal`).
  *
  * A non-zero exit is not treated as a failure: whatever the editor wrote is on
  * disk either way, and reparsing the file is what tells us what actually
  * changed. Only a failure to launch is reported.
  */
-export async function runEditor(
-  file: string,
-  line: number,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
-  const { command, args } = resolveEditorCommand(editorFromEnv(env), file, line)
+export async function runEditor(file: string, line: number, editor: string): Promise<void> {
+  const { command, args } = resolveEditorCommand(editor, file, line)
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'inherit' })
     child.on('error', (error: NodeJS.ErrnoException) => {
       reject(
         error.code === 'ENOENT'
-          ? new Error(`editor not found: ${command} (set $EDITOR)`)
+          ? new Error(`editor not found: ${command} (set "editor" in the config, or $EDITOR)`)
           : new Error(`could not run ${command}: ${error.message}`),
       )
     })

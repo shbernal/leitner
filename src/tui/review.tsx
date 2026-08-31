@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
 import { applyRecordMoves, reconcileCardIds } from '../edit.js'
-import { editorFromEnv, runEditor, type EditorRunner } from '../editor.js'
+import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
 import { parseFile } from '../parser.js'
 import { buildQueue, summarizeDecks, type QueueItem, type QueueOptions } from '../queue.js'
@@ -23,6 +23,8 @@ export type ReviewSessionOptions = {
   images: ImageSupport
   /** Absolute paths verified as displayable PNGs. */
   displayablePngs: Set<string>
+  /** The config's `editor`; unset falls through to $VISUAL/$EDITOR/vi. */
+  editor?: string | null
   /** Overridable so tests can drive the edit flow without spawning $EDITOR. */
   openEditor?: EditorRunner
 }
@@ -81,7 +83,9 @@ function matches(item: QueueItem, needle: string): boolean {
 
 export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const { cards, decks, state, statePath, queueOptions, images, displayablePngs } = options
-  const openEditor = options.openEditor ?? runEditor
+  const editorCommand = resolveEditor(options.editor)
+  const openEditor =
+    options.openEditor ?? ((file: string, line: number) => runEditor(file, line, editorCommand))
   const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
 
@@ -407,7 +411,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       return
     }
     if (input === 'e') {
-      setMessage(`opening ${editorFromEnv()}…`)
+      setMessage(`opening ${editorCommand}…`)
       void edit(item)
       return
     }

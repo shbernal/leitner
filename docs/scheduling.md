@@ -80,7 +80,8 @@ as it was found. Quitting discards the stack; there is no undo across sessions.
 ## Config
 
 `~/.config/leitner/config.json`, honouring `XDG_CONFIG_HOME`. Missing file means
-defaults, unknown keys are ignored, and every key has a flag that overrides it.
+defaults, and unknown keys are ignored. Every key but `editor` has a flag that
+overrides it; `editor` is answered by the environment instead.
 
 The file is written by `leitner init`, which the first run that needs a
 `sourceDirs` and has no answer for it invokes on your behalf. It is still
@@ -92,9 +93,15 @@ it. `init` writes absolute paths, and rewrites only `sourceDirs`.
 | `sourceDirs` | `["~/notes/flashcards"]` | scanned when no `dir` argument is given; `~` is expanded in each |
 | `dailyLimit` | `50` | queue cap for `review` when `--limit` is absent |
 | `defaultDeckFilter` | `null` | a standing `--deck`; `null` opens the deck picker |
+| `editor` | `null` | the command `e` hands the card to; `null` uses `$VISUAL`, then `$EDITOR`, then `vi` |
 
 A plain string `sourceDir`, which older versions wrote, is read as a
 one-directory list. Nothing writes it any more.
+
+`editor` is a command line, not a path: flags in it are passed through, and the
+line-jumping argument is appended to them. It beats `$VISUAL` and `$EDITOR`
+because it is an answer to "which editor for this program", where those are a
+machine-wide default. A blank string counts as unset rather than as a command.
 
 The directories are one collection: the queue mixes them, `--limit` caps the
 whole thing, and there are no per-directory parameters. They may not contain one

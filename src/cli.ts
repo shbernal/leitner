@@ -89,6 +89,8 @@ export type CliOptions = {
   bundlePath?: string
   /** `init` only: keep the configured directories and add to them. */
   add: boolean
+  /** The config's `editor`, if it names one; `review` only. */
+  editor?: string
 }
 
 export async function parseCli(argv: string[]): Promise<CliOptions | null> {
@@ -160,6 +162,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     dryRun: values['dry-run'],
     add: values.add,
     bundlePath: positionals[1] === undefined ? undefined : expandHome(positionals[1]),
+    editor: config.editor ?? undefined,
   }
 }
 
@@ -385,6 +388,7 @@ export async function runReview(options: CliOptions): Promise<void> {
       ? support
       : { ...support, enabled: false, reason: 'pass --images to enable previews' },
     displayablePngs,
+    editor: options.editor,
   })
 }
 

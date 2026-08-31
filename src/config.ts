@@ -6,6 +6,8 @@ export type AppConfig = {
   sourceDirs: string[]
   dailyLimit: number
   defaultDeckFilter: string | null
+  /** The `e` key's editor command, flags included. `null` defers to $VISUAL/$EDITOR. */
+  editor: string | null
 }
 
 /**
@@ -30,6 +32,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
   dailyLimit: 50,
   defaultDeckFilter: null,
+  editor: null,
 }
 
 /**
@@ -88,6 +91,9 @@ export function withDefaults(parsed: ParsedConfig | null): AppConfig {
     sourceDirs: named.length > 0 ? named : normalizeSourceDirs(DEFAULT_CONFIG.sourceDirs),
     dailyLimit: parsed?.dailyLimit ?? DEFAULT_CONFIG.dailyLimit,
     defaultDeckFilter: parsed?.defaultDeckFilter ?? DEFAULT_CONFIG.defaultDeckFilter,
+    // An empty string is not a command; treated as unset so it falls through to
+    // the environment rather than trying to spawn "".
+    editor: parsed?.editor?.trim() ? parsed.editor : DEFAULT_CONFIG.editor,
   }
 }
 

@@ -73,6 +73,7 @@ describe('readConfigFile and withDefaults', () => {
       sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 50,
       defaultDeckFilter: null,
+      editor: null,
     })
   })
 
@@ -82,6 +83,7 @@ describe('readConfigFile and withDefaults', () => {
       sourceDirs: ['/decks'],
       dailyLimit: 7,
       defaultDeckFilter: 'vocabulary',
+      editor: null,
     })
   })
 
@@ -121,7 +123,20 @@ describe('readConfigFile and withDefaults', () => {
       sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 7,
       defaultDeckFilter: null,
+      editor: null,
     })
+  })
+
+  it('reads an editor command, flags and all', async () => {
+    await writeConfig({ editor: 'code --wait' })
+    expect(withDefaults(await readConfigFile()).editor).toBe('code --wait')
+  })
+
+  /* Spawning "" would fail with an unhelpful ENOENT, where an unset key falls
+     through to $VISUAL/$EDITOR — which is what a blank value is asking for. */
+  it('treats a blank editor as unset', async () => {
+    await writeConfig({ editor: '  ' })
+    expect(withDefaults(await readConfigFile()).editor).toBeNull()
   })
 
   it('ignores unknown keys', async () => {
@@ -130,6 +145,7 @@ describe('readConfigFile and withDefaults', () => {
       sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
       dailyLimit: 7,
       defaultDeckFilter: null,
+      editor: null,
     })
   })
 

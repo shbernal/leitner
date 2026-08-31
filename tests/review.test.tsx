@@ -408,13 +408,17 @@ describe('ReviewApp editing', () => {
     }
   }
 
-  /** Render against a real file on disk, with `openEditor` standing in for $EDITOR. */
-  async function openDeck(runner: EditorRunner) {
+  /**
+   * Render against a real file on disk. `runner` stands in for $EDITOR; passing
+   * null leaves it out so the real spawn runs, which is how the configured
+   * command is observed at all.
+   */
+  async function openDeck(runner: EditorRunner | null, editor?: string) {
     deckPath = path.join(dir, 'algebra.md')
     await fs.writeFile(deckPath, DECK, 'utf8')
     const parsed = await parseFile(deckPath, dir)
 
-    const openEditor = vi.fn<EditorRunner>(runner)
+    const openEditor = vi.fn<EditorRunner>(runner ?? (async () => {}))
     const rendered = await renderTui(
       <ReviewApp
         cards={parsed.cards}
@@ -425,7 +429,8 @@ describe('ReviewApp editing', () => {
         deckFilter={parsed.deck?.id}
         images={{ enabled: false, tmux: false, reason: 'not a kitty terminal' }}
         displayablePngs={new Set()}
-        openEditor={openEditor}
+        openEditor={runner === null ? undefined : openEditor}
+        editor={editor}
       />,
     )
     ui = rendered
@@ -436,6 +441,18 @@ describe('ReviewApp editing', () => {
   function settled(check: () => void) {
     return vi.waitFor(check, { timeout: 2000, interval: 20 })
   }
+
+  /* No `openEditor` here on purpose: this is the one test that lets the real
+     spawn happen, so it pins that the configured command — not $EDITOR — is what
+     gets run. A name nothing can resolve is what makes the failure legible. */
+  it('runs the configured editor rather than $EDITOR', async () => {
+    const { ui } = await openDeck(null, 'leitner-no-such-editor')
+    await ui.press(KEY.space)
+    await ui.press('e')
+    await settled(() => {
+      expect(ui.frame()).toContain('editor not found: leitner-no-such-editor')
+    })
+  })
 
   it('opens the editor on the current card and shows the edited body', async () => {
     const { ui, openEditor, cards } = await openDeck(

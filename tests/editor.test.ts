@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { editorFromEnv, resolveEditorCommand } from '../src/editor.js'
+import { resolveEditor, resolveEditorCommand } from '../src/editor.js'
 
 const FILE = '/notes/algebra.md'
 
-describe('editorFromEnv', () => {
+describe('resolveEditor', () => {
+  it('prefers the configured editor over both variables', () => {
+    expect(resolveEditor('helix', { VISUAL: 'nvim', EDITOR: 'nano' })).toBe('helix')
+  })
+
   it('prefers $VISUAL over $EDITOR', () => {
-    expect(editorFromEnv({ VISUAL: 'nvim', EDITOR: 'nano' })).toBe('nvim')
+    expect(resolveEditor(null, { VISUAL: 'nvim', EDITOR: 'nano' })).toBe('nvim')
   })
 
   it('falls back to $EDITOR, then to vi', () => {
-    expect(editorFromEnv({ EDITOR: 'nano' })).toBe('nano')
-    expect(editorFromEnv({})).toBe('vi')
-    expect(editorFromEnv({ EDITOR: '   ' })).toBe('vi')
+    expect(resolveEditor(null, { EDITOR: 'nano' })).toBe('nano')
+    expect(resolveEditor(null, {})).toBe('vi')
+    expect(resolveEditor(null, { EDITOR: '   ' })).toBe('vi')
+  })
+
+  it('treats a blank configured editor as unset', () => {
+    expect(resolveEditor('   ', { EDITOR: 'nano' })).toBe('nano')
+    expect(resolveEditor('', {})).toBe('vi')
   })
 })
 

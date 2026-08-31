@@ -45,6 +45,7 @@ describe('runInit', () => {
       sourceDirs: [fixtures],
       dailyLimit: 50,
       defaultDeckFilter: null,
+      editor: null,
     })
   })
 
@@ -89,6 +90,7 @@ describe('runInit', () => {
       sourceDirs: [fixtures],
       dailyLimit: 7,
       defaultDeckFilter: null,
+      editor: null,
     })
     // Re-running `init` is an edit, and saying "no configuration yet" would be a lie.
     expect(lines[0]).toBe(`leitner will update ${configPath}.`)

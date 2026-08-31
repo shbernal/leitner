@@ -151,6 +151,12 @@ describe('parseCli', () => {
     expect((await parseCli(['review', '--deck', 'other']))?.deck).toBe('other')
   })
 
+  it('carries the configured editor through to the review session', async () => {
+    await writeConfig({ editor: 'code --wait' })
+    expect((await parseCli(['review']))?.editor).toBe('code --wait')
+    expect((await parseCli(['list']))?.editor).toBe('code --wait')
+  })
+
   it('reads every positional after the command as a source directory', async () => {
     const parsed = await parseCli(['list', '/decks', '/work/cards'])
     expect(parsed?.sourceDirs).toEqual(['/decks', '/work/cards'])
