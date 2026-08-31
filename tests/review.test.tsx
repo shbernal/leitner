@@ -8,7 +8,7 @@ import { buildKittyClearSequence, buildKittyImageSequence } from '../src/images.
 import { parseFile } from '../src/parser.js'
 import { emptyState, type ReviewState } from '../src/state.js'
 import { ReviewApp } from '../src/tui/review.js'
-import type { Flashcard, ReviewRecord } from '../src/types.js'
+import type { Deck, Flashcard, ReviewRecord } from '../src/types.js'
 import { KEY, renderTui, type TuiHarness } from './helpers/tui.js'
 
 function makeCard(id: string, title: string, body: string): Flashcard {
@@ -516,5 +516,129 @@ describe('ReviewApp editing', () => {
     expect(frame).toContain('editor not found: nope')
     expect(frame).toContain('card 1/2')
     expect(frame).toContain('What is a group?')
+  })
+})
+
+describe('ReviewApp deck picker', () => {
+  const botanyCard: Flashcard = {
+    ...makeCard('c', 'What is a leaf?', 'A photosynthetic organ.'),
+    deckId: 'botany',
+    deckTitle: 'Botany',
+    sourcePath: '/notes/botany.md',
+  }
+
+  const twoDecks: Deck[] = [
+    {
+      id: 'algebra',
+      title: 'Algebra',
+      sourcePath: '/notes/algebra.md',
+      rootDir: '/notes',
+      type: 'content',
+      cardCount: 2,
+    },
+    {
+      id: 'botany',
+      title: 'Botany',
+      sourcePath: '/notes/botany.md',
+      rootDir: '/notes',
+      type: 'content',
+      cardCount: 1,
+    },
+  ]
+
+  /** A session that starts on the picker, the way `review` with no --deck does. */
+  function openPicker() {
+    return open(undefined, {
+      cards: [...cards, botanyCard],
+      decks: twoDecks,
+      deckFilter: undefined,
+    })
+  }
+
+  /** The picker row for a deck, so its counts can be read back. */
+  function deckRow(frame: string, label: string): string {
+    return frame.split('\n').find((line) => line.includes(label)) ?? ''
+  }
+
+  it('returns to the picker when a deck is finished', async () => {
+    const ui = await openPicker()
+    expect(ui.frame()).toContain('Select a deck')
+
+    await ui.press(KEY.down)
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('card 1/2')
+
+    for (let i = 0; i < 2; i++) {
+      await ui.press(KEY.space)
+      await ui.press('3')
+    }
+    const done = ui.frame()
+    expect(done).toContain('Session complete — 2 cards reviewed.')
+    expect(done).toContain('enter: pick another deck')
+
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('Select a deck')
+  })
+
+  it('shows the counts the finished deck left behind', async () => {
+    const ui = await openPicker()
+    await ui.press(KEY.down)
+    await ui.press(KEY.enter)
+    await ui.press(KEY.space)
+    await ui.press('3')
+    await ui.press(KEY.space)
+    await ui.press('3')
+    await ui.press(KEY.enter)
+
+    const frame = ui.frame()
+    // Both graded cards are scheduled ahead, so nothing in Algebra is left.
+    expect(deckRow(frame, 'Algebra')).toContain('0 new')
+    expect(deckRow(frame, 'Botany')).toContain('1 new')
+  })
+
+  it('carries the total across the decks of one session', async () => {
+    const ui = await openPicker()
+    await ui.press(KEY.down)
+    await ui.press(KEY.enter)
+    await ui.press(KEY.space)
+    await ui.press('3')
+    await ui.press(KEY.space)
+    await ui.press('3')
+    await ui.press(KEY.enter)
+
+    await ui.press(KEY.down)
+    await ui.press(KEY.down)
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('What is a leaf?')
+    await ui.press(KEY.space)
+    await ui.press('3')
+
+    expect(ui.frame()).toContain('Session complete — 3 cards reviewed.')
+  })
+
+  it('leaves the search keys to the picker while it is up', async () => {
+    const ui = await openPicker()
+    await ui.press('/')
+    await ui.type('bot')
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('matching "bot"')
+
+    await ui.press(KEY.enter)
+    const frame = ui.frame()
+    expect(frame).toContain('What is a leaf?')
+    // The review screen's own search never started, so no stale prompt survives.
+    expect(frame).not.toContain('/bot')
+  })
+
+  it('offers no way back when --deck chose the deck', async () => {
+    const ui = await open()
+    for (let i = 0; i < cards.length; i++) {
+      await ui.press(KEY.space)
+      await ui.press('3')
+    }
+    expect(ui.frame()).not.toContain('pick another deck')
+
+    await ui.press(KEY.enter)
+    expect(ui.frame()).toContain('Session complete')
   })
 })

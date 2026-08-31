@@ -60,6 +60,7 @@ Options:
 Review keys:
   space/enter reveal · 1-4 grade · j/k scroll · s suspend · u undo
   e edit in $EDITOR · / search · i image preview · q quit
+  When a deck is finished, enter goes back to the deck picker.
 `
 
 export type Command = 'init' | 'review' | 'list' | 'stats' | 'export' | 'import'

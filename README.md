@@ -123,8 +123,13 @@ chmod +x ~/.local/bin/leitner
 one deck — by `--deck`, or by `defaultDeckFilter` in the config, which sets the
 same option. Pick `All decks` to study everything.
 
+When a deck runs out, the completion screen offers the picker again, so one
+`review` can cover several decks; `q` ends the whole session and prints the
+total. A session narrowed by `--deck` has no picker to return to, so it only
+offers `q`.
+
 ```text
-enter/space  select deck (picker) · reveal answer (review)
+enter/space  select deck (picker) · reveal answer (review) · back to decks (done)
 1 2 3 4      grade: again / hard / good / easy
 j/k, arrows  move selection / scroll body
 /            filter decks (picker) · search cards (review)
@@ -132,6 +137,7 @@ s            suspend card
 u            undo last grade
 e            edit card in $EDITOR
 i            image preview (needs --images)
+b            back to the deck picker (done screen)
 esc          clear an active search
 q            quit
 ```

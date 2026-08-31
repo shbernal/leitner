@@ -85,8 +85,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
 
+  /* --deck scopes the whole invocation, so a session started under it never had a
+     picker and does not get sent to one when the deck runs out. */
+  const canPick = options.deckFilter === undefined
   // With --deck the picker is skipped entirely, so the session starts picked.
-  const [picked, setPicked] = useState(options.deckFilter !== undefined)
+  const [picked, setPicked] = useState(!canPick)
   // Editing rewrites the source file, so the card pool outlives the prop.
   const [allCards, setAllCards] = useState<Flashcard[]>(cards)
   const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
@@ -108,8 +111,6 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const viewportHeight = Math.max(5, rows - CHROME_ROWS)
   const bodyWidth = Math.max(20, columns - 4)
 
-  const summaries = useMemo(() => summarizeDecks(allCards, state), [allCards, state])
-
   const selectDeck = (sourcePaths: string[]) => {
     const scope = new Set(sourcePaths)
     const scoped = allCards.filter((card) => scope.has(card.sourcePath))
@@ -121,7 +122,27 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     setRevealed(false)
     setScroll(0)
     setDone(built.length === 0)
+    // Undo rewrites a record for a card that is not in this deck and would not
+    // come back on screen, so the stack does not cross a deck boundary.
+    setUndoStack([])
+    setSearching(false)
+    setSearch('')
     setMessage(built.length === 0 ? 'nothing due in that deck' : 'space/enter: reveal')
+  }
+
+  /** Back to the menu with the session still running, so another deck can follow. */
+  const backToPicker = () => {
+    setPicked(false)
+    setQueue([])
+    setFullQueue([])
+    setIndex(0)
+    setRevealed(false)
+    setScroll(0)
+    setDone(false)
+    setSearching(false)
+    setSearch('')
+    setUndoStack([])
+    setMessage('space/enter: reveal')
   }
 
   const item = queue[index]
@@ -277,7 +298,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   }
 
   useInput((input, key) => {
-    if (editing) return
+    // The picker is mounted alongside this hook and owns the keyboard while it
+    // is up; without this, `/` would start a search behind it.
+    if (!picked || editing) return
 
     if (imageMode) {
       setImageMode(false)
@@ -346,7 +369,34 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       if (search !== '') clearSearch()
       return
     }
-    if (done || !item) return
+    if (input === 'u') {
+      const entry = undoStack.at(-1)
+      if (!entry) {
+        setMessage('nothing to undo')
+        return
+      }
+      if (entry.previousRecord) state.records[entry.cardId] = entry.previousRecord
+      else delete state.records[entry.cardId]
+      setUndoStack((stack) => stack.slice(0, -1))
+      // The queue may have been narrowed by a search since the card was graded.
+      const position = queue.findIndex((q) => q.card.id === entry.cardId)
+      if (position >= 0) {
+        setIndex(position)
+        setRevealed(true)
+        setScroll(0)
+      }
+      setDone(false)
+      setGraded((n) => Math.max(0, n - 1))
+      persist(`undid ${entry.action}`)
+      setMessage(`undid ${entry.action}`)
+      return
+    }
+
+    if (done) {
+      if (canPick && (input === 'b' || input === ' ' || key.return)) backToPicker()
+      return
+    }
+    if (!item) return
 
     if (input === ' ' || key.return) {
       if (!revealed) {
@@ -385,28 +435,6 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       setScroll((s) => Math.max(0, s - 1))
       return
     }
-    if (input === 'u') {
-      const entry = undoStack.at(-1)
-      if (!entry) {
-        setMessage('nothing to undo')
-        return
-      }
-      if (entry.previousRecord) state.records[entry.cardId] = entry.previousRecord
-      else delete state.records[entry.cardId]
-      setUndoStack((stack) => stack.slice(0, -1))
-      // The queue may have been narrowed by a search since the card was graded.
-      const position = queue.findIndex((q) => q.card.id === entry.cardId)
-      if (position >= 0) {
-        setIndex(position)
-        setRevealed(true)
-        setScroll(0)
-      }
-      setDone(false)
-      setGraded((n) => Math.max(0, n - 1))
-      persist(`undid ${entry.action}`)
-      setMessage(`undid ${entry.action}`)
-      return
-    }
     if (input === 's') {
       const record = state.records[item.card.id] ?? newRecord(item.card)
       recordUndo(item.card.id, 'suspend')
@@ -426,13 +454,17 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   })
 
   if (!picked) {
+    /* Counted here rather than in a memo: grading mutates `state.records` in
+       place, so nothing a dependency array can watch changes, and a deck
+       finished this session would come back to the menu with its old numbers. */
+    const summaries = summarizeDecks(allCards, state)
     return (
       <DeckPicker
         decks={decks}
         summaries={summaries}
         height={viewportHeight}
         onSelect={selectDeck}
-        onQuit={exit}
+        onQuit={() => exit({ graded })}
       />
     )
   }
@@ -453,7 +485,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     return (
       <Box flexDirection="column" padding={1}>
         <Text color="green">Session complete — {graded} cards reviewed.</Text>
-        <Text dimColor>q to quit · u to undo last grade</Text>
+        <Text dimColor>
+          {canPick ? 'enter: pick another deck · ' : ''}q to quit · u to undo last grade
+        </Text>
         <Text dimColor>{message}</Text>
       </Box>
     )
