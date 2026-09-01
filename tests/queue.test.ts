@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildQueue, summarizeDecks } from '../src/queue.js'
+import { buildPracticeQueue, buildQueue, summarizeDecks } from '../src/queue.js'
 import { emptyState } from '../src/state.js'
 import type { Flashcard, ReviewRecord } from '../src/types.js'
 
@@ -68,6 +68,37 @@ describe('buildQueue', () => {
     suspendedState.records['a'] = makeRecord('a', '2026-06-01T12:00:00.000Z', true)
     const queue = buildQueue([makeCard('a')], suspendedState, {}, now)
     expect(queue).toHaveLength(0)
+  })
+})
+
+describe('buildPracticeQueue', () => {
+  const cards = ['a', 'b', 'c', 'd'].map(makeCard)
+  const state = emptyState()
+  state.records['a'] = makeRecord('a', '2026-06-10T12:00:00.000Z') // due
+  state.records['b'] = makeRecord('b', '2036-06-01T12:00:00.000Z') // not due for years
+  state.records['c'] = makeRecord('c', '2026-06-10T12:00:00.000Z', true) // suspended
+  // d has no record: new
+
+  it('takes the whole deck in deck order, whatever the schedule says', () => {
+    expect(buildPracticeQueue(cards, state).map((q) => q.card.id)).toEqual(['a', 'b', 'd'])
+  })
+
+  it('leaves suspended cards out', () => {
+    expect(buildPracticeQueue(cards, state).map((q) => q.card.id)).not.toContain('c')
+  })
+
+  it('marks cards with no record as new', () => {
+    const marked = new Map(buildPracticeQueue(cards, state).map((q) => [q.card.id, q.isNew]))
+    expect(marked.get('d')).toBe(true)
+    expect(marked.get('b')).toBe(false)
+  })
+
+  /* A pass is a read-through, so it takes no options at all: there is no due
+     cutoff to relax and no limit to raise once you are in one. */
+  it('is not narrowed by the flags that narrow a review queue', () => {
+    const everything = buildPracticeQueue(cards, state)
+    expect(everything).toHaveLength(3)
+    expect(buildQueue(cards, state, { limit: 1 }, now)).toHaveLength(1)
   })
 })
 

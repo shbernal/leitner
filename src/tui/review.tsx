@@ -1,14 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
 import { applyRecordMoves, reconcileCardIds } from '../edit.js'
 import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
 import { parseFile } from '../parser.js'
-import { buildQueue, summarizeDecks, type QueueItem, type QueueOptions } from '../queue.js'
+import {
+  buildPracticeQueue,
+  buildQueue,
+  summarizeDecks,
+  type QueueItem,
+  type QueueOptions,
+} from '../queue.js'
 import { renderMarkdown, type RenderedLine } from '../render.js'
 import { applyGrade, newRecord } from '../scheduler.js'
 import { saveState, type ReviewState } from '../state.js'
-import type { Deck, Flashcard, Grade, ReviewRecord } from '../types.js'
+import type { Deck, Flashcard, Grade, ReviewRecord, SessionMode } from '../types.js'
 import { MarkdownLine } from './components.js'
 import { DeckPicker } from './DeckPicker.js'
 
@@ -66,14 +72,29 @@ function attachmentLines(item: QueueItem, displayablePngs: Set<string>): Rendere
   return lines
 }
 
-/** With --deck the picker is skipped, so that deck's queue exists from mount. */
-function initialQueue(options: ReviewSessionOptions): QueueItem[] {
-  const { deckFilter, cards, state, queueOptions } = options
+/** With --deck the picker is skipped, so that deck's scope exists from mount. */
+function initialScope(options: ReviewSessionOptions): string[] {
+  const { deckFilter, cards } = options
   if (deckFilter === undefined) return []
-  const scoped = cards.filter(
-    (card) => card.deckId === deckFilter || card.sourcePath.includes(deckFilter),
-  )
-  return buildQueue(scoped, state, queueOptions)
+  const paths = cards
+    .filter((card) => card.deckId === deckFilter || card.sourcePath.includes(deckFilter))
+    .map((card) => card.sourcePath)
+  return [...new Set(paths)]
+}
+
+function initialQueue(options: ReviewSessionOptions): QueueItem[] {
+  const scope = new Set(initialScope(options))
+  if (scope.size === 0) return []
+  const scoped = options.cards.filter((card) => scope.has(card.sourcePath))
+  return buildQueue(scoped, options.state, options.queueOptions)
+}
+
+/* An empty queue is the one place a deck says why it is empty. In review mode
+   that reason is the schedule, and the way past it is a practice pass. */
+function emptyQueueMessage(length: number, mode: SessionMode): string {
+  if (length > 0) return 'space/enter: reveal'
+  if (mode === 'practice') return 'every card in that deck is suspended'
+  return 'nothing due in that deck · p: practise the whole deck'
 }
 
 function matches(item: QueueItem, needle: string): boolean {
@@ -98,11 +119,19 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [allCards, setAllCards] = useState<Flashcard[]>(cards)
   const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [fullQueue, setFullQueue] = useState<QueueItem[]>(() => initialQueue(options))
+  const [mode, setMode] = useState<SessionMode>('review')
+  /* The source paths behind the current queue, kept so the completion screen can
+     reopen the same decks as a practice pass without going back to the picker —
+     which under --deck is not there to go back to. */
+  const [scopePaths, setScopePaths] = useState<string[]>(() => initialScope(options))
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [scroll, setScroll] = useState(0)
-  const [message, setMessage] = useState('space/enter: reveal')
+  /* Under --deck there is no picker to explain an empty queue, so the mount-time
+     message is the only place that says why the first screen is the last one. */
+  const [message, setMessage] = useState(() => emptyQueueMessage(queue.length, 'review'))
   const [graded, setGraded] = useState(0)
+  const [practised, setPractised] = useState(0)
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([])
   const [done, setDone] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -115,11 +144,16 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const viewportHeight = Math.max(5, rows - CHROME_ROWS)
   const bodyWidth = Math.max(20, columns - 4)
 
-  const selectDeck = (sourcePaths: string[]) => {
+  const selectDeck = (sourcePaths: string[], nextMode: SessionMode = 'review') => {
     const scope = new Set(sourcePaths)
     const scoped = allCards.filter((card) => scope.has(card.sourcePath))
-    const built = buildQueue(scoped, state, queueOptions)
+    const built =
+      nextMode === 'practice'
+        ? buildPracticeQueue(scoped, state)
+        : buildQueue(scoped, state, queueOptions)
     setPicked(true)
+    setMode(nextMode)
+    setScopePaths(sourcePaths)
     setQueue(built)
     setFullQueue(built)
     setIndex(0)
@@ -131,7 +165,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     setUndoStack([])
     setSearching(false)
     setSearch('')
-    setMessage(built.length === 0 ? 'nothing due in that deck' : 'space/enter: reveal')
+    setMessage(emptyQueueMessage(built.length, nextMode))
   }
 
   /** Back to the menu with the session still running, so another deck can follow. */
@@ -146,6 +180,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     setSearching(false)
     setSearch('')
     setUndoStack([])
+    setMode('review')
+    setScopePaths([])
     setMessage('space/enter: reveal')
   }
 
@@ -205,14 +241,20 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
   }, [imageMode, previewable, stdout, images.tmux, columns, rows, waitUntilRenderFlush])
 
+  /* Whether this session has written the state file. Every mutation persists as
+     it happens, so the save after teardown is only a flush for the last one, and
+     a session that changed nothing must not touch the file at all — which is
+     what makes a practice pass inert rather than merely harmless. */
+  const touched = useRef(false)
+
   const persist = (action: string) => {
+    touched.current = true
     void saveState(statePath, state).catch((error: unknown) => {
       setMessage(`${action} (warning: failed to save state: ${String(error)})`)
     })
   }
 
   const advance = (action: string) => {
-    setGraded((n) => n + 1)
     setRevealed(false)
     setScroll(0)
     setMessage(action)
@@ -360,7 +402,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
 
     if (input === 'q' || (key.ctrl && input === 'c')) {
-      exit({ graded })
+      exit({ graded, practised, touched: touched.current })
       return
     }
     if (input === '/') {
@@ -396,18 +438,42 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       return
     }
 
-    if (done) {
+    /* `done || !item` is the completion screen's own condition: an empty queue
+       reaches it without ever setting `done`, and its keys have to work there too. */
+    if (done || !item) {
+      if (input === 'p' && scopePaths.length > 0) {
+        selectDeck(scopePaths, 'practice')
+        return
+      }
       if (canPick && (input === 'b' || input === ' ' || key.return)) backToPicker()
       return
     }
-    if (!item) return
 
     if (input === ' ' || key.return) {
       if (!revealed) {
         setRevealed(true)
         setScroll(0)
-        setMessage('grade: 1 again · 2 hard · 3 good · 4 easy')
+        setMessage(
+          mode === 'practice'
+            ? 'space/enter: next card'
+            : 'grade: 1 again · 2 hard · 3 good · 4 easy',
+        )
+        return
       }
+      // One key for the whole pass: reveal, then next. Nothing to decide between.
+      if (mode === 'practice') {
+        setPractised((n) => n + 1)
+        // The card box carries the reveal hint itself, so the message line stays
+        // clear rather than following the last card onto the completion screen.
+        advance('')
+      }
+      return
+    }
+
+    /* A practice pass writes no scheduling, so the keys that would are answered
+       rather than ignored: silence here reads as a dropped keypress. */
+    if (mode === 'practice' && (input === 's' || GRADE_KEYS[input] !== undefined)) {
+      setMessage('a practice pass schedules nothing · space/enter for the next card')
       return
     }
     if (input === 'e') {
@@ -444,15 +510,17 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       recordUndo(item.card.id, 'suspend')
       state.records[item.card.id] = { ...record, suspended: true }
       persist('suspended')
+      setGraded((n) => n + 1)
       advance(`suspended "${item.card.title}"`)
       return
     }
     const grade = GRADE_KEYS[input]
-    if (grade && revealed) {
+    if (grade && revealed && mode === 'review') {
       const record = state.records[item.card.id] ?? newRecord(item.card)
       recordUndo(item.card.id, grade)
       state.records[item.card.id] = applyGrade(record, grade)
       persist(grade)
+      setGraded((n) => n + 1)
       advance(`graded "${item.card.title}": ${grade}`)
     }
   })
@@ -468,7 +536,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         summaries={summaries}
         height={viewportHeight}
         onSelect={selectDeck}
-        onQuit={() => exit({ graded })}
+        onPractice={(sourcePaths) => selectDeck(sourcePaths, 'practice')}
+        onQuit={() => exit({ graded, practised, touched: touched.current })}
       />
     )
   }
@@ -486,12 +555,22 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   }
 
   if (done || !item) {
+    /* The last screen of a deck is where a practice pass is offered, because with
+       --deck or defaultDeckFilter there is no picker behind it to offer one. */
+    const hints = [
+      canPick ? 'enter: pick another deck' : '',
+      mode === 'review' && scopePaths.length > 0 ? 'p: practise the whole deck' : '',
+      'q to quit',
+      mode === 'review' ? 'u to undo last grade' : '',
+    ].filter((hint) => hint !== '')
     return (
       <Box flexDirection="column" padding={1}>
-        <Text color="green">Session complete — {graded} cards reviewed.</Text>
-        <Text dimColor>
-          {canPick ? 'enter: pick another deck · ' : ''}q to quit · u to undo last grade
+        <Text color="green">
+          {mode === 'practice'
+            ? `Practice pass complete — ${practised} card${practised === 1 ? '' : 's'}.`
+            : `Session complete — ${graded} card${graded === 1 ? '' : 's'} reviewed.`}
         </Text>
+        <Text dimColor>{hints.join(' · ')}</Text>
         <Text dimColor>{message}</Text>
       </Box>
     )
@@ -507,7 +586,12 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
           {item.card.deckTitle}
         </Text>
         <Text dimColor>
-          card {index + 1}/{queue.length} · {queue.length - newCount} due · {newCount} new
+          card {index + 1}/{queue.length} ·{' '}
+          {mode === 'practice' ? (
+            <Text color="yellow">full pass</Text>
+          ) : (
+            `${queue.length - newCount} due · ${newCount} new`
+          )}
           {item.isNew ? ' · NEW' : ''}
         </Text>
       </Box>
@@ -539,7 +623,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         <Text color="yellow">/{search}▏</Text>
       ) : (
         <Text dimColor>
-          space reveal · 1-4 grade · j/k scroll · s suspend · u undo · e edit · / search
+          {mode === 'practice'
+            ? 'space reveal/next · j/k scroll · e edit · / search'
+            : 'space reveal · 1-4 grade · j/k scroll · s suspend · u undo · e edit · / search'}
           {previewable.length > 0 ? ' · i image' : ''} · q quit
         </Text>
       )}
@@ -549,11 +635,15 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 }
 
 /** What ReviewApp hands back through exit(), for the summary printed after teardown. */
-type ReviewResult = { graded: number }
+type ReviewResult = { graded: number; practised: number; touched: boolean }
 
 function isReviewResult(value: unknown): value is ReviewResult {
   return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'graded') === 'number'
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'graded') === 'number' &&
+    typeof Reflect.get(value, 'practised') === 'number' &&
+    typeof Reflect.get(value, 'touched') === 'boolean'
   )
 }
 
@@ -564,12 +654,20 @@ export async function startReview(options: ReviewSessionOptions): Promise<void> 
     alternateScreen: true,
   })
   const result = await app.waitUntilExit()
-  await saveState(options.statePath, options.state)
+  /* An unrecognised result means the session ended some way this code does not
+     know about, so flush rather than assume there was nothing to flush. */
+  const outcome = isReviewResult(result) ? result : { graded: 0, practised: 0, touched: true }
+  if (outcome.touched) await saveState(options.statePath, options.state)
 
   // The alternate screen is gone by now along with the session-complete frame,
   // so restate the outcome on the primary screen.
-  const graded = isReviewResult(result) ? result.graded : 0
+  const { graded, practised } = outcome
   if (graded > 0) {
     process.stdout.write(`Reviewed ${graded} card${graded === 1 ? '' : 's'}.\n`)
+  }
+  // Counted apart from the graded total, and named apart: a practice pass moved
+  // no card's schedule, so calling it a review would overstate what happened.
+  if (practised > 0) {
+    process.stdout.write(`Practised ${practised} card${practised === 1 ? '' : 's'}.\n`)
   }
 }

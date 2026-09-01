@@ -86,3 +86,18 @@ export function summarizeDecks(
   }
   return summaries
 }
+
+/**
+ * Every card in the deck, in deck order, suspended ones aside.
+ *
+ * A practice pass is a read-through, not scheduled work, so no due date narrows
+ * it and neither `--limit` nor `dailyLimit` truncates it: those cap how much the
+ * scheduler asks of you, and this asks nothing. Deck order rather than due order
+ * because the file's order is the order the notes were written in, and "card
+ * 12/40" only means something when the pass is stable.
+ */
+export function buildPracticeQueue(cards: Flashcard[], state: ReviewState): QueueItem[] {
+  return cards
+    .filter((card) => state.records[card.id]?.suspended !== true)
+    .map((card) => ({ card, isNew: state.records[card.id] === undefined }))
+}

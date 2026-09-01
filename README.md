@@ -125,11 +125,16 @@ same option. Pick `All decks` to study everything.
 
 When a deck runs out, the completion screen offers the picker again, so one
 `review` can cover several decks; `q` ends the whole session and prints the
-total. A session narrowed by `--deck` has no picker to return to, so it only
-offers `q`.
+total. A session narrowed by `--deck` has no picker to return to, so it offers
+`q` and a practice pass over the deck it was given.
+
+A collection with nothing due still opens the picker, showing `0 due` against
+every deck. Only a collection with no cards in it at all exits first.
 
 ```text
-enter/space  select deck (picker) · reveal answer (review) · back to decks (done)
+enter/space  select deck (picker) · reveal answer, then next card (review)
+             back to decks (done)
+p            practise the whole deck (picker, done screen)
 1 2 3 4      grade: again / hard / good / easy
 j/k, arrows  move selection / scroll body
 /            filter decks (picker) · search cards (review)
@@ -143,8 +148,25 @@ q            quit
 ```
 
 The session runs on the terminal's alternate screen, like `vim` or `less`, so
-it leaves the scrollback untouched. The number of cards reviewed is printed on
-the normal screen once it exits.
+it leaves the scrollback untouched. The counts of cards reviewed and practised
+are printed on the normal screen once it exits.
+
+### Practising a deck
+
+`p` opens a deck outside the schedule: every card in it, in deck order,
+suspended ones aside, however far out the next review is. It is there for the
+exam on Tuesday and the deck that says "not for three weeks". Press it on a row
+in the picker, or on the completion screen to reopen the deck just finished,
+which is the way in when `--deck` skipped the picker.
+
+A practice pass schedules nothing. There is no grading, no suspending, and
+nothing is written to the state file, so an evening of last-minute revision
+leaves the schedule exactly as it found it. `space` or `enter` reveals a card
+and the same key moves to the next one. Practised cards are counted apart from
+reviewed ones, on screen and in the totals printed at the end.
+
+`e` still edits, because a renamed heading has to keep its review record.
+[`docs/scheduling.md`](docs/scheduling.md) has the reasoning.
 
 ### Editing a card
 

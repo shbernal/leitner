@@ -12,7 +12,7 @@ import {
 import { detectImageSupport, isDisplayablePng, tmuxPassthroughEnabled } from './images.js'
 import { isInteractive, runInit } from './onboard.js'
 import { parseDirectories } from './parser.js'
-import { buildQueue, summarizeDecks } from './queue.js'
+import { summarizeDecks } from './queue.js'
 import { defaultStatePath, loadState, saveState } from './state.js'
 import {
   isMergeStrategy,
@@ -336,11 +336,12 @@ export async function runReview(options: CliOptions): Promise<void> {
   const cards = filterCards(parsed.cards, { type: options.type, untyped: options.untyped })
   const state = await loadState(options.statePath)
 
-  // Cheap pre-check so `review` exits cleanly on an exhausted collection
-  // instead of opening a deck picker with nothing behind it.
-  const anything = buildQueue(cards, state, { dueOnly: options.dueOnly, newOnly: options.newOnly })
-  if (anything.length === 0) {
-    process.stdout.write('No cards to review. 🎉\n')
+  /* Cheap pre-check so `review` exits cleanly instead of opening a deck picker
+     with nothing behind it. It asks about cards, not about the queue: a
+     collection with nothing due still opens, because the picker offers a
+     practice pass over any deck and refusing here is what would leave no way in. */
+  if (cards.length === 0) {
+    process.stdout.write('No cards found.\n')
     return
   }
 

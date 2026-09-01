@@ -659,3 +659,140 @@ describe('ReviewApp deck picker', () => {
     expect(ui.frame()).toContain('Session complete')
   })
 })
+
+describe('ReviewApp practice pass', () => {
+  /** A record that keeps its card far out of the review queue. */
+  function scheduled(cardId: string, overrides: Partial<ReviewRecord> = {}): ReviewRecord {
+    return {
+      cardId,
+      sourcePath: '/notes/algebra.md',
+      sourceMtimeMs: 0,
+      suspended: false,
+      dueAt: '2099-01-01T00:00:00.000Z',
+      intervalDays: 30,
+      ease: 2.5,
+      reps: 3,
+      lapses: 0,
+      ...overrides,
+    }
+  }
+
+  /** Every card scheduled, so the review queue is empty and a pass is all that is left. */
+  function openExhausted(overrides: Overrides = {}) {
+    state.records['a'] = scheduled('a')
+    state.records['b'] = scheduled('b')
+    return open(undefined, overrides)
+  }
+
+  it('offers a pass when --deck left a deck with nothing due', async () => {
+    const ui = await openExhausted()
+    const frame = ui.frame()
+    expect(frame).toContain('nothing due in that deck')
+    expect(frame).toContain('p: practise the whole deck')
+    // The escape hatch has to be here: --deck means there is no picker behind it.
+    expect(frame).not.toContain('pick another deck')
+  })
+
+  it('takes the whole deck, however far out the schedule put it', async () => {
+    const ui = await openExhausted()
+    await ui.press('p')
+
+    const frame = ui.frame()
+    expect(frame).toContain('card 1/2')
+    expect(frame).toContain('full pass')
+    expect(frame).toContain('What is a group?')
+  })
+
+  it('moves on the same key it reveals with', async () => {
+    const ui = await openExhausted()
+    await ui.press('p')
+    expect(ui.frame()).not.toContain('A set with an associative operation.')
+
+    await ui.press(KEY.space)
+    expect(ui.frame()).toContain('A set with an associative operation.')
+
+    await ui.press(KEY.space)
+    let frame = ui.frame()
+    expect(frame).toContain('card 2/2')
+    expect(frame).toContain('What is a ring?')
+
+    await ui.press(KEY.enter)
+    await ui.press(KEY.enter)
+    frame = ui.frame()
+    expect(frame).toContain('Practice pass complete — 2 cards.')
+    expect(frame).not.toContain('cards reviewed')
+  })
+
+  it('offers no grading keys and no suspend', async () => {
+    const ui = await openExhausted()
+    await ui.press('p')
+    const hints = ui.frame()
+    expect(hints).toContain('space reveal/next')
+    expect(hints).not.toContain('1-4 grade')
+    expect(hints).not.toContain('s suspend')
+  })
+
+  /* Silence would read as a dropped keypress, and the muscle memory that presses
+     3 here is the same muscle memory that grades a real session. */
+  it('answers a grade key rather than ignoring it', async () => {
+    const ui = await openExhausted()
+    await ui.press('p')
+    await ui.press(KEY.space)
+    await ui.press('3')
+
+    const frame = ui.frame()
+    expect(frame).toContain('a practice pass schedules nothing')
+    expect(frame).toContain('card 1/2')
+
+    await ui.press('s')
+    expect(ui.frame()).toContain('a practice pass schedules nothing')
+    expect(ui.frame()).toContain('card 1/2')
+  })
+
+  /* The whole claim of the mode, and the only assertion that can hold it: a pass
+     schedules nothing, so it never opens the state file. */
+  it('writes nothing to the state file', async () => {
+    const ui = await openExhausted()
+    await ui.press('p')
+    for (let i = 0; i < cards.length; i++) {
+      await ui.press(KEY.space)
+      await ui.press(KEY.space)
+    }
+    expect(ui.frame()).toContain('Practice pass complete')
+    await expect(fs.access(statePath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('leaves suspended cards out of the pass', async () => {
+    state.records['a'] = scheduled('a')
+    state.records['b'] = scheduled('b', { suspended: true })
+    const ui = await open()
+    await ui.press('p')
+
+    const frame = ui.frame()
+    expect(frame).toContain('card 1/1')
+    expect(frame).toContain('What is a group?')
+  })
+
+  it('says so when suspension is why the pass is empty', async () => {
+    state.records['a'] = scheduled('a', { suspended: true })
+    state.records['b'] = scheduled('b', { suspended: true })
+    const ui = await open()
+    await ui.press('p')
+    expect(ui.frame()).toContain('every card in that deck is suspended')
+  })
+
+  it('keeps a graded session and a pass apart in the totals', async () => {
+    const ui = await open()
+    await ui.press(KEY.space)
+    await ui.press('3')
+    await ui.press(KEY.space)
+    await ui.press('3')
+    expect(ui.frame()).toContain('Session complete — 2 cards reviewed.')
+
+    await ui.press('p')
+    await ui.press(KEY.space)
+    await ui.press(KEY.space)
+    // The pass takes the whole deck back, graded cards included.
+    expect(ui.frame()).toContain('card 2/2')
+  })
+})

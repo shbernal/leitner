@@ -72,6 +72,13 @@ export type ParseResult = {
 
 export type Grade = 'again' | 'hard' | 'good' | 'easy'
 
+/**
+ * What a review session is doing. `practice` is a read-through of a whole deck
+ * that schedules nothing: no grades, no suspends, no writes to the state file.
+ * See `docs/scheduling.md`.
+ */
+export type SessionMode = 'review' | 'practice'
+
 export type ReviewRecord = {
   cardId: string
   sourcePath: string

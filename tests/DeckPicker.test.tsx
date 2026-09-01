@@ -37,6 +37,7 @@ afterEach(() => {
 
 async function open(overrides: Partial<React.ComponentProps<typeof DeckPicker>> = {}) {
   const onSelect = vi.fn<(sourcePaths: string[]) => void>()
+  const onPractice = vi.fn<(sourcePaths: string[]) => void>()
   const onQuit = vi.fn<() => void>()
   ui = await renderTui(
     <DeckPicker
@@ -44,11 +45,12 @@ async function open(overrides: Partial<React.ComponentProps<typeof DeckPicker>> 
       summaries={summaries}
       height={10}
       onSelect={onSelect}
+      onPractice={onPractice}
       onQuit={onQuit}
       {...overrides}
     />,
   )
-  return { ui, onSelect, onQuit }
+  return { ui, onSelect, onPractice, onQuit }
 }
 
 /** The cursor row is the one prefixed with the selection marker. */
@@ -110,6 +112,46 @@ describe('DeckPicker', () => {
     ])
   })
 
+  it('opens the deck under the cursor as a practice pass with p', async () => {
+    const { ui, onSelect, onPractice } = await open()
+    await ui.press('j')
+    await ui.press('j')
+    await ui.press('p')
+    expect(onPractice).toHaveBeenCalledWith(['/notes/botany.md'])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  /* Chemistry has nothing due, which is the case the key exists for: the row is
+     still selectable and p is the way past a schedule that says "not yet". */
+  it('practises a deck with nothing due', async () => {
+    const { ui, onPractice } = await open()
+    await ui.press('/')
+    await ui.type('chem')
+    await ui.press(KEY.enter) // commits the filter
+    expect(ui.frame()).toMatch(/Chemistry\s+0 due/)
+    await ui.press('p')
+    expect(onPractice).toHaveBeenCalledWith(['/notes/chemistry.md'])
+  })
+
+  it('practises every listed deck from "All decks"', async () => {
+    const { ui, onPractice } = await open()
+    await ui.press('p')
+    expect(onPractice).toHaveBeenCalledWith([
+      '/notes/algebra.md',
+      '/notes/botany.md',
+      '/notes/chemistry.md',
+    ])
+  })
+
+  // `p` is a filter character before it is a command.
+  it('types p into the filter instead of practising', async () => {
+    const { ui, onPractice } = await open()
+    await ui.press('/')
+    await ui.type('p')
+    expect(ui.frame()).toContain('/p')
+    expect(onPractice).not.toHaveBeenCalled()
+  })
+
   it('limits "All decks" to the decks left by the filter', async () => {
     const { ui, onSelect } = await open()
     await ui.press('/')
@@ -147,7 +189,7 @@ describe('DeckPicker', () => {
     await ui.press(KEY.escape)
     frame = ui.frame()
     expect(frame).toContain('Algebra')
-    expect(frame).toContain('enter select · j/k move · / filter · q quit')
+    expect(frame).toContain('enter select · p practice · j/k move · / filter · q quit')
   })
 
   it('edits the filter with backspace instead of quitting', async () => {

@@ -15,6 +15,8 @@ export type DeckPickerProps = {
    * can hold the same relative path and so name two files with one slug.
    */
   onSelect: (sourcePaths: string[]) => void
+  /** The same decks, opened as a practice pass instead of a graded session. */
+  onPractice: (sourcePaths: string[]) => void
   onQuit: () => void
 }
 
@@ -44,6 +46,7 @@ export function DeckPicker({
   summaries,
   height,
   onSelect,
+  onPractice,
   onQuit,
 }: DeckPickerProps): React.ReactElement {
   const [cursor, setCursor] = useState(0)
@@ -134,11 +137,21 @@ export function DeckPicker({
       setCursor((c) => Math.max(0, c - 1))
       return
     }
-    if (key.return || input === ' ') {
+    // "All decks" means the decks on screen, so it honours the active filter.
+    const chosen = (): string[] | undefined => {
       const row = rows[clampedCursor]
-      if (!row) return
-      // "All decks" means the decks on screen, so it honours the active filter.
-      onSelect(row.id === ALL_DECKS ? rows.slice(1).map((r) => r.id) : [row.id])
+      if (!row) return undefined
+      return row.id === ALL_DECKS ? rows.slice(1).map((r) => r.id) : [row.id]
+    }
+
+    if (input === 'p') {
+      const paths = chosen()
+      if (paths) onPractice(paths)
+      return
+    }
+    if (key.return || input === ' ') {
+      const paths = chosen()
+      if (paths) onSelect(paths)
     }
   })
 
@@ -187,7 +200,7 @@ export function DeckPicker({
       {filtering ? (
         <Text color="yellow">/{filter}▏</Text>
       ) : (
-        <Text dimColor>enter select · j/k move · / filter · q quit</Text>
+        <Text dimColor>enter select · p practice · j/k move · / filter · q quit</Text>
       )}
     </Box>
   )

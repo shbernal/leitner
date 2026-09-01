@@ -53,10 +53,56 @@ Suspended cards are never due and are never queued. `s` suspends the current
 card, and `u` takes it back while the session lasts; after that, un-suspending
 is an edit to the state file.
 
+`review` opens the deck picker whenever the collection holds any cards at all,
+even when none of them are due. A refusal there would be the one place a
+practice pass cannot be reached from, since the picker is where it is offered.
+Only an empty collection exits before the screen.
+
 Records whose card no longer exists are ignored when the queue is built, and
 kept in the file regardless. That is what makes moving a deck file away and back
 non-destructive, since a card's id is derived from its path. Dropping those
 records is a deliberate act: `export --prune`.
+
+## A practice pass
+
+The queue above is what the scheduler asks of you. A practice pass is the other
+thing: the whole deck in deck order, suspended cards aside, with no due date
+narrowing it and neither `--limit` nor `dailyLimit` truncating it. It is the
+answer to an exam on Tuesday and a deck that says "not for three weeks".
+
+There is no flag for it, and no need to leave a session to get one. `p` in the
+deck picker opens the highlighted deck as a pass, `All decks` included, and `p`
+on the completion screen reopens the deck just finished. That second entry is
+not a convenience: `--deck` and `defaultDeckFilter` skip the picker, so the
+completion screen is the only door left.
+
+**A pass schedules nothing.** No grades, no suspend, and the state file is not
+written. `space` or `enter` reveals the card and the same key moves on, which is
+the whole interaction. The keys that would schedule something say why they did
+nothing rather than appearing to be dropped.
+
+The reason is that `applyGrade` is a pure function of `(record, grade, now)`
+with no term for how early the answer came. Grade a card `good` three months
+ahead of its due date and the interval is multiplied by ease and measured from
+*now*, so one evening of last-minute revision would push a whole deck into next
+year and nothing would say it had happened. Anki buys its way out of this with
+an early-review interval bonus, which is a real elapsed-time model; half of one
+is worse than none.
+
+An early *failure* is honest information in a way an early success is not, and
+there is a case for letting it pull a card back in. It is not taken here: a pass
+is fast and graded loosely by design, and paying for one bad evening with a
+wrecked schedule is the wrong trade.
+
+Editing with `e` still works in a pass and is the one thing that can touch the
+state file, because renaming a heading moves a card's id and `reconcileCardIds`
+is what carries the record across. Orphaning review history to keep the rule
+tidy would be the worse bug.
+
+A pass counts as practice and never as a review. The two totals are kept apart
+on screen and in the line printed after the session, and when there is a review
+log to put them in, a pass writes events tagged as practice, counted for what
+you did and left out of anything about retention or intervals.
 
 ## State on disk
 
@@ -115,6 +161,8 @@ card in the other. `docs/format.md` has the derivation.
   to match Anki's intervals — see above.
 - **Writing to the markdown.** Scheduling metadata stays in the state file; the
   parser is a consumer and the notes tree keeps no review history.
+- **Cramming that reschedules.** A practice pass is deliberately inert, and
+  there is no `--cram` that grades cards early into the schedule. See above.
 - **Per-deck or per-card parameters.** One global set of constants, at the top of
   `src/scheduler.ts`. Changing them re-schedules everything on the next grade,
   which is fine for a single user's notes and would not be for shared decks.
