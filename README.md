@@ -138,6 +138,8 @@ p            practise the whole deck (picker, done screen)
 1 2 3 4      grade: again / hard / good / easy
 j/k, arrows  move selection / scroll body
 /            filter decks (picker) · search cards (review)
+.            show the hidden decks, greyed (picker)
+H            hide the deck under the cursor, or show it again (picker)
 s            suspend card
 u            undo last grade
 e            edit card in $EDITOR
@@ -167,6 +169,36 @@ reviewed ones, on screen and in the totals printed at the end.
 
 `e` still edits, because a renamed heading has to keep its review record.
 [`docs/scheduling.md`](docs/scheduling.md) has the reasoning.
+
+### Hiding a deck
+
+`H` in the deck picker hides the deck under the cursor: an archive, a deck
+someone else maintains, one collection of several you rarely study. The header
+says how many are out — `3 decks · +2 hidden` — rather than letting them vanish,
+`.` shows them again, greyed, and `H` on a revealed deck puts it back in the
+list. The reveal lasts as long as the picker is on screen; leaving it for a deck
+and coming back starts from the config again.
+
+A hidden deck is out of `All decks` too, because that row means the decks on
+screen — press `.` first to study everything. Hiding is a picker setting and
+nothing else: `list`, `stats` and `export` still see every deck, `--deck` opens
+a hidden one directly, and no card's schedule changes. Suspending (`s`) is what
+stops a card coming round; this only stops a deck being offered.
+
+`H` writes `hiddenDecks` in the config, adding the deck's source path and
+removing it again. The rest of the file is left exactly as it was, so a key with
+a config open in another window costs you nothing but that one line. The list
+can also be written by hand:
+
+```json
+{ "hiddenDecks": ["german-verbs", "~/notes/flashcards/archive"] }
+```
+
+Entries are matched the way `--deck` is: a deck slug, or any part of a source
+path, so one entry can stand for a whole directory. `H` only ever takes back an
+entry that is the deck's own path — pressed on a deck hidden by a directory
+entry it says which entry that is and changes nothing, because dropping it would
+show every other deck under it too.
 
 ### Editing a card
 

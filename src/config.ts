@@ -8,6 +8,13 @@ export type AppConfig = {
   defaultDeckFilter: string | null
   /** The `e` key's editor command, flags included. `null` defers to $VISUAL/$EDITOR. */
   editor: string | null
+  /**
+   * Decks the picker leaves out of its list until `.` reveals them, each matched
+   * the way `--deck` is: a deck slug, or a substring of a source path. It is a
+   * presentation setting and nothing more — no command narrows what it parses by
+   * it, so `list`, `stats` and above all `export --prune` still see every deck.
+   */
+  hiddenDecks: string[]
 }
 
 /**
@@ -33,6 +40,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   dailyLimit: 50,
   defaultDeckFilter: null,
   editor: null,
+  hiddenDecks: [],
 }
 
 /**
@@ -94,16 +102,41 @@ export function withDefaults(parsed: ParsedConfig | null): AppConfig {
     // An empty string is not a command; treated as unset so it falls through to
     // the environment rather than trying to spawn "".
     editor: parsed?.editor?.trim() ? parsed.editor : DEFAULT_CONFIG.editor,
+    /* A blank entry is a substring of every source path, so one left in the file
+       would hide the whole collection and read as an empty one. `~` is expanded
+       because an entry may be a path; a slug has none to expand. */
+    hiddenDecks: (parsed?.hiddenDecks ?? DEFAULT_CONFIG.hiddenDecks)
+      .filter((entry) => entry.trim() !== '')
+      .map(expandHome),
   }
 }
 
 /**
  * Written the way the state file is — temp file then rename — because a config
  * half-written by an interrupted `init` would fail to parse on every later run.
+ *
+ * It takes a `ParsedConfig` rather than an `AppConfig` so that a caller editing
+ * one key can hand back the file it read, keys this program does not define
+ * included. Passing a defaults-filled `AppConfig` writes every key, which is what
+ * `init` wants and what a keypress in the picker does not.
  */
-export async function writeConfig(configPath: string, config: AppConfig): Promise<void> {
+export async function writeConfig(configPath: string, config: ParsedConfig): Promise<void> {
   await fs.mkdir(path.dirname(configPath), { recursive: true })
   const tmpPath = `${configPath}.tmp`
   await fs.writeFile(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
   await fs.rename(tmpPath, configPath)
+}
+
+/**
+ * `hiddenDecks` rewritten in place, every other key left exactly as it was found
+ * — the legacy `sourceDir` spelling and anything the user added by hand alike.
+ * Hiding a deck is a keypress, and a keypress that quietly rewrote the rest of
+ * someone's config would be a poor trade for a row leaving a list.
+ *
+ * An unparseable file throws out of `readConfigFile` before anything is written,
+ * so the broken file survives to be fixed rather than being replaced.
+ */
+export async function writeHiddenDecks(configPath: string, hiddenDecks: string[]): Promise<void> {
+  const existing = (await readConfigFile(configPath)) ?? {}
+  await writeConfig(configPath, { ...existing, hiddenDecks })
 }

@@ -140,9 +140,33 @@ it. `init` writes absolute paths, and rewrites only `sourceDirs`.
 | `dailyLimit` | `50` | queue cap for `review` when `--limit` is absent |
 | `defaultDeckFilter` | `null` | a standing `--deck`; `null` opens the deck picker |
 | `editor` | `null` | the command `e` hands the card to; `null` uses `$VISUAL`, then `$EDITOR`, then `vi` |
+| `hiddenDecks` | `[]` | decks the picker leaves out of its list until `.` reveals them; `H` writes it |
 
 A plain string `sourceDir`, which older versions wrote, is read as a
 one-directory list. Nothing writes it any more.
+
+`hiddenDecks` is the one key with no flag, because the deck picker is all it
+narrows. Each entry is matched the way `--deck` is — a deck slug, or a substring
+of a source path — so one entry hides a whole directory, and a short one hides
+more decks than it names. Blank entries are dropped: an empty string is a
+substring of every path, so one left in the file would hide the collection whole.
+
+It is also the one key a keypress writes. `H` in the picker adds the deck's
+source path, or removes that entry again, and rewrites nothing else in the file:
+unknown keys and the legacy `sourceDir` spelling survive it, and a file that
+cannot be parsed is left alone to be fixed by hand rather than replaced. The path
+rather than the slug, because two source directories can hold the same relative
+path and so share a slug, and the key was pressed on one row. For the same reason
+`H` will not drop an entry that is not the deck's own path — a directory entry
+hides decks the cursor was never on, so it says which entry is in the way and
+leaves the file alone.
+
+A hidden deck is out of the picker's `All decks` row as well as its list, which
+is the same rule the `/` filter follows: a session is the decks on screen. It
+goes no further than that. The cards are parsed, `list` and `stats` count them,
+`export --prune` still sees their records, and `--deck` opens one directly.
+Suspending is what stops a card being scheduled; this only stops a deck being
+offered.
 
 `editor` is a command line, not a path: flags in it are passed through, and the
 line-jumping argument is appended to them. It beats `$VISUAL` and `$EDITOR`

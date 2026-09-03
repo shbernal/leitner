@@ -91,6 +91,8 @@ export type CliOptions = {
   add: boolean
   /** The config's `editor`, if it names one; `review` only. */
   editor?: string
+  /** The config's `hiddenDecks`; the deck picker's list is what they narrow. */
+  hiddenDecks: string[]
 }
 
 export async function parseCli(argv: string[]): Promise<CliOptions | null> {
@@ -163,6 +165,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     add: values.add,
     bundlePath: positionals[1] === undefined ? undefined : expandHome(positionals[1]),
     editor: config.editor ?? undefined,
+    hiddenDecks: config.hiddenDecks,
   }
 }
 
@@ -385,6 +388,7 @@ export async function runReview(options: CliOptions): Promise<void> {
     statePath: options.statePath,
     queueOptions: { dueOnly: options.dueOnly, newOnly: options.newOnly, limit: options.limit },
     deckFilter: options.deck,
+    hiddenDecks: options.hiddenDecks,
     images: options.images
       ? support
       : { ...support, enabled: false, reason: 'pass --images to enable previews' },

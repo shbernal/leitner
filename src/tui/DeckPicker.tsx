@@ -9,6 +9,8 @@ export type DeckPickerProps = {
   decks: Deck[]
   summaries: Map<string, DeckSummary>
   height: number
+  /** The config's `hiddenDecks`: slugs, or substrings of a source path. */
+  hiddenDecks: string[]
   /**
    * The decks to review, by source path: every listed deck for "All decks",
    * otherwise just one. Paths rather than slugs, because two source directories
@@ -18,6 +20,12 @@ export type DeckPickerProps = {
   /** The same decks, opened as a practice pass instead of a graded session. */
   onPractice: (sourcePaths: string[]) => void
   onQuit: () => void
+  /**
+   * `H`: add this deck's source path to `hiddenDecks`, or take it out again.
+   * Rejecting leaves the list as it was and the reason on screen, so a config
+   * that could not be written never shows as one that was.
+   */
+  onToggleHidden: (sourcePath: string, hide: boolean) => Promise<void>
 }
 
 type Row = {
@@ -28,6 +36,23 @@ type Row = {
   label: string
   type: string
   summary: DeckSummary
+  /**
+   * The `hiddenDecks` entry that hides this deck, or undefined when none does.
+   * The entry rather than a flag, because `H` can only take back an entry that
+   * is this deck's own path: naming which other one is in the way is the whole
+   * difference between a refusal and a key that looks broken.
+   */
+  hiddenBy: string | undefined
+}
+
+/**
+ * The `--deck` rule, applied to a deck rather than a card: the slug exactly, or
+ * any substring of the source path — which is what lets one entry hide a whole
+ * source directory. Duplicated from `filterCards` rather than shared, because
+ * that one answers about a card and this one about the row on screen.
+ */
+function hiddenBy(slug: string, sourcePath: string, patterns: string[]): string | undefined {
+  return patterns.find((pattern) => slug === pattern || sourcePath.includes(pattern))
 }
 
 function totals(summaries: Iterable<DeckSummary>): DeckSummary {
@@ -48,12 +73,19 @@ export function DeckPicker({
   onSelect,
   onPractice,
   onQuit,
+  hiddenDecks,
+  onToggleHidden,
 }: DeckPickerProps): React.ReactElement {
   const [cursor, setCursor] = useState(0)
   const [filter, setFilter] = useState('')
   const [filtering, setFiltering] = useState(false)
+  /* Per session and never written, the way yazi's `.` is: revealing a deck is a
+     look at the collection, not a change to it. */
+  const [showHidden, setShowHidden] = useState(false)
+  /** What the last `H` did, or why it did nothing. Cleared by the next key. */
+  const [message, setMessage] = useState('')
 
-  const rows = useMemo<Row[]>(() => {
+  const { rows, hiddenCount } = useMemo<{ rows: Row[]; hiddenCount: number }>(() => {
     const deckRows: Row[] = decks
       .map((deck) => ({
         id: deck.sourcePath,
@@ -62,16 +94,22 @@ export function DeckPicker({
         label: deck.title,
         type: deck.type ?? '',
         summary: summaries.get(deck.sourcePath) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
+        hiddenBy: hiddenBy(deck.id, deck.sourcePath, hiddenDecks),
       }))
       .filter((row) => row.summary.total > 0)
+
+    const hiddenCount = deckRows.filter((row) => row.hiddenBy !== undefined).length
+    // Hidden rows leave the list, and so leave "All decks" with it — the rule
+    // below is that a session is what is on screen, and this is the same rule.
+    const listed = showHidden ? deckRows : deckRows.filter((row) => row.hiddenBy === undefined)
 
     const needle = filter.trim().toLowerCase()
     // The path is searchable so that one source directory can be picked out of
     // several by typing part of it.
     const matched =
       needle === ''
-        ? deckRows
-        : deckRows.filter(
+        ? listed
+        : listed.filter(
             (row) =>
               row.slug.toLowerCase().includes(needle) ||
               row.label.toLowerCase().includes(needle) ||
@@ -79,20 +117,24 @@ export function DeckPicker({
           )
 
     // An "All decks" row over nothing would offer an empty session, so drop it too.
-    if (matched.length === 0) return []
+    if (matched.length === 0) return { rows: [], hiddenCount }
 
-    return [
-      {
-        id: ALL_DECKS,
-        slug: ALL_DECKS,
-        path: '',
-        label: 'All decks',
-        type: '',
-        summary: totals(matched.map((r) => r.summary)),
-      },
-      ...matched,
-    ]
-  }, [decks, summaries, filter])
+    return {
+      rows: [
+        {
+          id: ALL_DECKS,
+          slug: ALL_DECKS,
+          path: '',
+          label: 'All decks',
+          type: '',
+          summary: totals(matched.map((r) => r.summary)),
+          hiddenBy: undefined,
+        },
+        ...matched,
+      ],
+      hiddenCount,
+    }
+  }, [decks, summaries, filter, hiddenDecks, showHidden])
 
   const deckCount = Math.max(0, rows.length - 1)
 
@@ -121,12 +163,54 @@ export function DeckPicker({
       return
     }
 
+    // Whatever the last `H` had to say is about the list as it was before this key.
+    setMessage('')
+
     if (input === 'q' || key.escape || (key.ctrl && input === 'c')) {
       onQuit()
       return
     }
     if (input === '/') {
       setFiltering(true)
+      return
+    }
+    /* Reveals the hidden decks rather than marking one hidden: what is hidden is
+       the config's answer, and this is only whether the list shows it. The cursor
+       goes home because the rows under it have changed, which is what committing
+       a filter does too. */
+    if (input === '.') {
+      setShowHidden((s) => !s)
+      setCursor(0)
+      return
+    }
+    /* Marks the deck under the cursor, where `.` only looks. It writes the source
+       path rather than the slug: two source directories can hold the same relative
+       path, so a slug would hide both files, and this key was pressed on one row. */
+    if (input === 'H') {
+      const row = rows[clampedCursor]
+      if (!row) return
+      if (row.id === ALL_DECKS) {
+        setMessage('H hides one deck; move to a row first')
+        return
+      }
+      if (row.hiddenBy === undefined) {
+        setMessage(`hiding ${row.label}`)
+        void onToggleHidden(row.path, true).catch((error: unknown) => {
+          setMessage(`could not write the config: ${String(error)}`)
+        })
+        return
+      }
+      /* An entry naming a directory hides every deck under it, so dropping it
+         here would show decks the cursor was never on. The config said it, and
+         the config is where it gets unsaid; this names which entry that is. */
+      if (row.hiddenBy !== row.path) {
+        setMessage(`hidden by "${row.hiddenBy}" in the config, so H cannot show it`)
+        return
+      }
+      setMessage(`showing ${row.label}`)
+      void onToggleHidden(row.path, false).catch((error: unknown) => {
+        setMessage(`could not write the config: ${String(error)}`)
+      })
       return
     }
     if (input === 'j' || key.downArrow) {
@@ -164,6 +248,17 @@ export function DeckPicker({
   const visible = rows.slice(start, start + viewport)
   const labelWidth = Math.max(12, ...rows.map((r) => r.label.length))
 
+  // `.` is named only where it would do something; `H` always would.
+  const hints = [
+    'enter select',
+    'p practice',
+    'j/k move',
+    '/ filter',
+    'H hide',
+    ...(hiddenCount === 0 ? [] : [`. ${showHidden ? 'hide' : 'show'} hidden`]),
+    'q quit',
+  ].join(' · ')
+
   return (
     <Box flexDirection="column">
       <Box justifyContent="space-between">
@@ -172,6 +267,13 @@ export function DeckPicker({
         </Text>
         <Text dimColor>
           {deckCount} decks{filter === '' ? '' : ` matching "${filter}"`}
+          {/* A hidden deck missing from the list without a word is how a user
+              concludes their collection lost a file. */}
+          {hiddenCount === 0
+            ? ''
+            : showHidden
+              ? ` · ${hiddenCount} hidden`
+              : ` · +${hiddenCount} hidden`}
         </Text>
       </Box>
       <Box borderStyle="round" borderColor="gray" flexDirection="column" paddingX={1}>
@@ -183,7 +285,8 @@ export function DeckPicker({
           visible.map((row) => {
             const selected = rows.indexOf(row) === clampedCursor
             return (
-              <Text key={row.id} inverse={selected}>
+              // Grey, not absent: a revealed deck is still one you set aside.
+              <Text key={row.id} inverse={selected} dimColor={row.hiddenBy !== undefined}>
                 {selected ? '❯ ' : '  '}
                 <Text bold={row.id === ALL_DECKS}>{row.label.padEnd(labelWidth)}</Text>
                 {'  '}
@@ -197,11 +300,8 @@ export function DeckPicker({
           })
         )}
       </Box>
-      {filtering ? (
-        <Text color="yellow">/{filter}▏</Text>
-      ) : (
-        <Text dimColor>enter select · p practice · j/k move · / filter · q quit</Text>
-      )}
+      {filtering ? <Text color="yellow">/{filter}▏</Text> : <Text dimColor>{hints}</Text>}
+      {message === '' ? null : <Text color="yellow">{message}</Text>}
     </Box>
   )
 }

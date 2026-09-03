@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
+import { defaultConfigPath, writeHiddenDecks } from '../config.js'
 import { applyRecordMoves, reconcileCardIds } from '../edit.js'
 import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
@@ -26,6 +27,13 @@ export type ReviewSessionOptions = {
   queueOptions: QueueOptions
   /** When set, the deck picker is skipped. */
   deckFilter?: string | undefined
+  /** The config's `hiddenDecks`; the picker keeps them out of its list until `.`. */
+  hiddenDecks?: string[]
+  /**
+   * Where `H` writes the changed list. Overridable so the tests drive the key
+   * without a config file, the way `openEditor` stands in for `$EDITOR`.
+   */
+  persistHiddenDecks?: (hiddenDecks: string[]) => Promise<void>
   images: ImageSupport
   /** Absolute paths verified as displayable PNGs. */
   displayablePngs: Set<string>
@@ -107,6 +115,10 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const editorCommand = resolveEditor(options.editor)
   const openEditor =
     options.openEditor ?? ((file: string, line: number) => runEditor(file, line, editorCommand))
+  /* `defaultConfigPath` rather than an injected path, because `parseCli` reads the
+     config the same way: the lever on both is XDG_CONFIG_HOME. */
+  const persistHiddenDecks =
+    options.persistHiddenDecks ?? ((next: string[]) => writeHiddenDecks(defaultConfigPath(), next))
   const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
 
@@ -117,6 +129,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [picked, setPicked] = useState(!canPick)
   // Editing rewrites the source file, so the card pool outlives the prop.
   const [allCards, setAllCards] = useState<Flashcard[]>(cards)
+  // `H` edits this, so the picker's list outlives the prop as well.
+  const [hiddenDecks, setHiddenDecks] = useState<string[]>(options.hiddenDecks ?? [])
   const [queue, setQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [fullQueue, setFullQueue] = useState<QueueItem[]>(() => initialQueue(options))
   const [mode, setMode] = useState<SessionMode>('review')
@@ -535,6 +549,16 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         decks={decks}
         summaries={summaries}
         height={viewportHeight}
+        hiddenDecks={hiddenDecks}
+        onToggleHidden={async (sourcePath, hide) => {
+          const next = hide
+            ? [...hiddenDecks, sourcePath]
+            : hiddenDecks.filter((entry) => entry !== sourcePath)
+          /* Written before the list changes, so a config that could not be
+             written leaves a picker that still agrees with the file on disk. */
+          await persistHiddenDecks(next)
+          setHiddenDecks(next)
+        }}
         onSelect={selectDeck}
         onPractice={(sourcePaths) => selectDeck(sourcePaths, 'practice')}
         onQuit={() => exit({ graded, practised, touched: touched.current })}

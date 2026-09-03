@@ -8,6 +8,7 @@ import {
   normalizeSourceDirs,
   readConfigFile,
   withDefaults,
+  writeHiddenDecks,
 } from '../src/config.js'
 
 /*
@@ -74,6 +75,7 @@ describe('readConfigFile and withDefaults', () => {
       dailyLimit: 50,
       defaultDeckFilter: null,
       editor: null,
+      hiddenDecks: [],
     })
   })
 
@@ -84,6 +86,7 @@ describe('readConfigFile and withDefaults', () => {
       dailyLimit: 7,
       defaultDeckFilter: 'vocabulary',
       editor: null,
+      hiddenDecks: [],
     })
   })
 
@@ -124,6 +127,7 @@ describe('readConfigFile and withDefaults', () => {
       dailyLimit: 7,
       defaultDeckFilter: null,
       editor: null,
+      hiddenDecks: [],
     })
   })
 
@@ -146,7 +150,23 @@ describe('readConfigFile and withDefaults', () => {
       dailyLimit: 7,
       defaultDeckFilter: null,
       editor: null,
+      hiddenDecks: [],
     })
+  })
+
+  it('reads hiddenDecks, expanding ~ in an entry that is a path', async () => {
+    await writeConfig({ hiddenDecks: ['scratch', '~/archive'] })
+    expect(withDefaults(await readConfigFile()).hiddenDecks).toEqual([
+      'scratch',
+      path.join(os.homedir(), 'archive'),
+    ])
+  })
+
+  /* An entry is matched against a source path with `includes`, so a blank one is
+     a substring of every deck and would hide the collection whole. */
+  it('drops a blank hiddenDecks entry rather than hiding everything', async () => {
+    await writeConfig({ hiddenDecks: ['', '  ', 'scratch'] })
+    expect(withDefaults(await readConfigFile()).hiddenDecks).toEqual(['scratch'])
   })
 
   it('reads an explicit path over the default one', async () => {
@@ -187,5 +207,50 @@ describe('normalizeSourceDirs', () => {
       '/notes/cards',
       '/notes/cards-work',
     ])
+  })
+})
+
+describe('writeHiddenDecks', () => {
+  let configPath: string
+
+  beforeEach(() => {
+    configPath = path.join(dir, 'leitner', 'config.json')
+  })
+
+  /* `writeConfig` serializes an `AppConfig`, so writing through it would drop a
+     key the user added by hand — and `H` in the picker is a keypress, not a
+     command anyone would expect to rewrite their file. */
+  it('rewrites the one key, leaving unknown ones and the legacy spelling alone', async () => {
+    await writeConfig({ sourceDir: '/decks', dailyLimit: 7, theme: 'dark' })
+    await writeHiddenDecks(configPath, ['scratch'])
+
+    expect(await readConfigFile(configPath)).toEqual({
+      sourceDir: '/decks',
+      dailyLimit: 7,
+      theme: 'dark',
+      hiddenDecks: ['scratch'],
+    })
+  })
+
+  it('replaces the list rather than adding to it', async () => {
+    await writeConfig({ hiddenDecks: ['scratch', 'archive'] })
+    await writeHiddenDecks(configPath, ['archive'])
+    expect((await readConfigFile(configPath))?.hiddenDecks).toEqual(['archive'])
+  })
+
+  it('writes a file when there is none', async () => {
+    await writeHiddenDecks(configPath, ['scratch'])
+    expect(await readConfigFile(configPath)).toEqual({ hiddenDecks: ['scratch'] })
+  })
+
+  /* The file is read before anything is written, so a config that cannot be
+     parsed survives the keypress to be fixed by hand. */
+  it('leaves an unparseable file exactly as it found it', async () => {
+    await fs.mkdir(path.dirname(configPath), { recursive: true })
+    await fs.writeFile(configPath, '{ not json')
+
+    // Only that it is the parse that failed: the wording is Node's, not ours.
+    await expect(writeHiddenDecks(configPath, ['scratch'])).rejects.toThrow(/JSON/)
+    expect(await fs.readFile(configPath, 'utf8')).toBe('{ not json')
   })
 })

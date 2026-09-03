@@ -53,6 +53,7 @@ function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}
     images: false,
     prune: false,
     merge: 'newer',
+    hiddenDecks: [],
     dryRun: false,
     add: false,
     ...extra,
@@ -149,6 +150,14 @@ describe('parseCli', () => {
     expect(fromConfig?.sourceDirOrigin).toBe('config')
     expect(fromConfig?.deck).toBe('vocabulary-words')
     expect((await parseCli(['review', '--deck', 'other']))?.deck).toBe('other')
+  })
+
+  /* There is no flag for it: the deck picker is the only thing it narrows, so the
+     way to study a hidden deck is `.` in the picker or `--deck` naming it. */
+  it('carries hiddenDecks through from the config, defaulting to none', async () => {
+    expect((await parseCli(['review']))?.hiddenDecks).toEqual([])
+    await writeConfig({ hiddenDecks: ['scratch'] })
+    expect((await parseCli(['review']))?.hiddenDecks).toEqual(['scratch'])
   })
 
   it('carries the configured editor through to the review session', async () => {

@@ -91,6 +91,20 @@ async function open(size?: { columns?: number; rows?: number }, overrides: Overr
   return ui
 }
 
+const algebraDeck: Deck = {
+  id: 'algebra',
+  title: 'Algebra',
+  sourcePath: '/notes/algebra.md',
+  rootDir: '/notes',
+  type: 'content',
+  cardCount: 2,
+}
+
+/** The picker, rather than the card screen: no `deckFilter` is what opens it. */
+function openPicker(overrides: Overrides = {}) {
+  return open(undefined, { deckFilter: undefined, decks: [algebraDeck], ...overrides })
+}
+
 const PNG = '/notes/attachments/diagram.png'
 
 /** Same deck, but the first card carries a previewable PNG. */
@@ -794,5 +808,57 @@ describe('ReviewApp practice pass', () => {
     await ui.press(KEY.space)
     // The pass takes the whole deck back, graded cards included.
     expect(ui.frame()).toContain('card 2/2')
+  })
+
+  /* Closes the loop the DeckPicker tests leave open: the key calls back, this
+     writes and hands the new list down, and the row goes. */
+  describe('hiding a deck from the picker', () => {
+    it('writes the new list and drops the deck from the picker', async () => {
+      const persistHiddenDecks = vi.fn<(hiddenDecks: string[]) => Promise<void>>(() =>
+        Promise.resolve(),
+      )
+      const ui = await openPicker({ persistHiddenDecks })
+      expect(ui.frame()).toContain('Algebra')
+
+      await ui.press('j')
+      await ui.press('H')
+
+      expect(persistHiddenDecks).toHaveBeenCalledWith(['/notes/algebra.md'])
+      const frame = ui.frame()
+      // The only deck there was, so the list empties; the message names what left.
+      expect(frame).toContain('0 decks · +1 hidden')
+      expect(frame).toContain('no decks match')
+      expect(frame).toContain('hiding Algebra')
+    })
+
+    it('takes the deck back out of the list, and out of the file', async () => {
+      const persistHiddenDecks = vi.fn<(hiddenDecks: string[]) => Promise<void>>(() =>
+        Promise.resolve(),
+      )
+      const ui = await openPicker({ hiddenDecks: ['/notes/algebra.md'], persistHiddenDecks })
+      expect(ui.frame()).not.toContain('Algebra')
+
+      await ui.press('.')
+      await ui.press('j')
+      await ui.press('H')
+
+      expect(persistHiddenDecks).toHaveBeenCalledWith([])
+      expect(ui.frame()).toContain('Algebra')
+    })
+
+    /* The write comes first, so a picker that says a deck is hidden and a config
+       that never heard of it cannot be the same moment. */
+    it('leaves the deck listed when the write fails', async () => {
+      const ui = await openPicker({
+        persistHiddenDecks: () => Promise.reject(new Error('EACCES: permission denied')),
+      })
+      await ui.press('j')
+      await ui.press('H')
+
+      const frame = ui.frame()
+      expect(frame).toContain('Algebra')
+      expect(frame).not.toContain('hidden')
+      expect(frame).toContain('could not write the config')
+    })
   })
 })
