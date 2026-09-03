@@ -66,6 +66,71 @@ function totals(summaries: Iterable<DeckSummary>): DeckSummary {
   return all
 }
 
+type RowList = { rows: Row[]; hiddenCount: number }
+
+/**
+ * The listed rows and how many decks are held back. A function rather than a
+ * memo body, because `.` has to know what the list becomes before it changes it:
+ * the cursor is an index, and an index means a different deck once rows come and
+ * go.
+ */
+function buildRows(
+  decks: Deck[],
+  summaries: Map<string, DeckSummary>,
+  hiddenDecks: string[],
+  filter: string,
+  showHidden: boolean,
+): RowList {
+  const deckRows: Row[] = decks
+    .map((deck) => ({
+      id: deck.sourcePath,
+      slug: deck.id,
+      path: deck.sourcePath,
+      label: deck.title,
+      type: deck.type ?? '',
+      summary: summaries.get(deck.sourcePath) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
+      hiddenBy: hiddenBy(deck.id, deck.sourcePath, hiddenDecks),
+    }))
+    .filter((row) => row.summary.total > 0)
+
+  const hiddenCount = deckRows.filter((row) => row.hiddenBy !== undefined).length
+  // Hidden rows leave the list, and so leave "All decks" with it — the rule
+  // below is that a session is what is on screen, and this is the same rule.
+  const listed = showHidden ? deckRows : deckRows.filter((row) => row.hiddenBy === undefined)
+
+  const needle = filter.trim().toLowerCase()
+  // The path is searchable so that one source directory can be picked out of
+  // several by typing part of it.
+  const matched =
+    needle === ''
+      ? listed
+      : listed.filter(
+          (row) =>
+            row.slug.toLowerCase().includes(needle) ||
+            row.label.toLowerCase().includes(needle) ||
+            row.path.toLowerCase().includes(needle),
+        )
+
+  // An "All decks" row over nothing would offer an empty session, so drop it too.
+  if (matched.length === 0) return { rows: [], hiddenCount }
+
+  return {
+    rows: [
+      {
+        id: ALL_DECKS,
+        slug: ALL_DECKS,
+        path: '',
+        label: 'All decks',
+        type: '',
+        summary: totals(matched.map((r) => r.summary)),
+        hiddenBy: undefined,
+      },
+      ...matched,
+    ],
+    hiddenCount,
+  }
+}
+
 export function DeckPicker({
   decks,
   summaries,
@@ -85,56 +150,10 @@ export function DeckPicker({
   /** What the last `H` did, or why it did nothing. Cleared by the next key. */
   const [message, setMessage] = useState('')
 
-  const { rows, hiddenCount } = useMemo<{ rows: Row[]; hiddenCount: number }>(() => {
-    const deckRows: Row[] = decks
-      .map((deck) => ({
-        id: deck.sourcePath,
-        slug: deck.id,
-        path: deck.sourcePath,
-        label: deck.title,
-        type: deck.type ?? '',
-        summary: summaries.get(deck.sourcePath) ?? { total: 0, due: 0, fresh: 0, suspended: 0 },
-        hiddenBy: hiddenBy(deck.id, deck.sourcePath, hiddenDecks),
-      }))
-      .filter((row) => row.summary.total > 0)
-
-    const hiddenCount = deckRows.filter((row) => row.hiddenBy !== undefined).length
-    // Hidden rows leave the list, and so leave "All decks" with it — the rule
-    // below is that a session is what is on screen, and this is the same rule.
-    const listed = showHidden ? deckRows : deckRows.filter((row) => row.hiddenBy === undefined)
-
-    const needle = filter.trim().toLowerCase()
-    // The path is searchable so that one source directory can be picked out of
-    // several by typing part of it.
-    const matched =
-      needle === ''
-        ? listed
-        : listed.filter(
-            (row) =>
-              row.slug.toLowerCase().includes(needle) ||
-              row.label.toLowerCase().includes(needle) ||
-              row.path.toLowerCase().includes(needle),
-          )
-
-    // An "All decks" row over nothing would offer an empty session, so drop it too.
-    if (matched.length === 0) return { rows: [], hiddenCount }
-
-    return {
-      rows: [
-        {
-          id: ALL_DECKS,
-          slug: ALL_DECKS,
-          path: '',
-          label: 'All decks',
-          type: '',
-          summary: totals(matched.map((r) => r.summary)),
-          hiddenBy: undefined,
-        },
-        ...matched,
-      ],
-      hiddenCount,
-    }
-  }, [decks, summaries, filter, hiddenDecks, showHidden])
+  const { rows, hiddenCount } = useMemo(
+    () => buildRows(decks, summaries, hiddenDecks, filter, showHidden),
+    [decks, summaries, hiddenDecks, filter, showHidden],
+  )
 
   const deckCount = Math.max(0, rows.length - 1)
 
@@ -175,12 +194,17 @@ export function DeckPicker({
       return
     }
     /* Reveals the hidden decks rather than marking one hidden: what is hidden is
-       the config's answer, and this is only whether the list shows it. The cursor
-       goes home because the rows under it have changed, which is what committing
-       a filter does too. */
+       the config's answer, and this is only whether the list shows it. Rows come
+       and go around the cursor, so it follows the deck it was on rather than the
+       index — a key for looking at the list should not also move you down it.
+       A deck that leaves the list leaves the cursor where it was, to be clamped
+       onto whatever now occupies the row. */
     if (input === '.') {
+      const selected = rows[clampedCursor]?.id
+      const next = buildRows(decks, summaries, hiddenDecks, filter, !showHidden)
+      const index = next.rows.findIndex((row) => row.id === selected)
       setShowHidden((s) => !s)
-      setCursor(0)
+      if (index >= 0) setCursor(index)
       return
     }
     /* Marks the deck under the cursor, where `.` only looks. It writes the source

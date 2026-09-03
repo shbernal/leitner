@@ -379,15 +379,34 @@ describe('DeckPicker', () => {
       expect(frame).not.toContain('Scratch')
     })
 
-    /* The rows under the cursor change, so the cursor goes home — the same thing
-       editing the filter does, and for the same reason. */
-    it('sends the cursor back to "All decks" when the list changes under it', async () => {
-      const { ui } = await openWithHidden(['scratch'])
+    /* Rows appear above and below the cursor, so holding its index would move it
+       to another deck. `.` is a key for looking at the list, not for moving down
+       it. */
+    it('leaves the cursor on the deck it was on', async () => {
+      const { ui } = await openWithHidden(['botany'])
       await ui.press('j')
       await ui.press('j')
-      expect(selectedLabel(ui.frame())).toBe('Botany')
+      expect(selectedLabel(ui.frame())).toBe('Chemistry')
+
       await ui.press('.')
-      expect(selectedLabel(ui.frame())).toBe('All decks')
+      expect(ui.frame()).toContain('Botany')
+      expect(selectedLabel(ui.frame())).toBe('Chemistry')
+
+      await ui.press('.')
+      expect(selectedLabel(ui.frame())).toBe('Chemistry')
+    })
+
+    /* Nothing left to stay on, so the index is all there is; clamping puts the
+       cursor on whatever now occupies the row. */
+    it('lands on a neighbour when the deck under the cursor is the one that goes', async () => {
+      const { ui } = await openWithHidden(['scratch'])
+      await ui.press('.')
+      for (let i = 0; i < 4; i += 1) await ui.press('j')
+      expect(selectedLabel(ui.frame())).toBe('Scratch')
+
+      await ui.press('.')
+      expect(ui.frame()).not.toContain('Scratch')
+      expect(selectedLabel(ui.frame())).toBe('Chemistry')
     })
 
     // Advertising a key that would do nothing is how a footer stops being read.
