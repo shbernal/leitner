@@ -24,10 +24,15 @@ the disagreement is a bug here.
 - everything else it salvages, skipping the bad unit and saying so.
 
 It is not a producer: it never writes a deck. Markdown files are **only ever
-read**. Review state lives in
-`~/.local/share/leitner/review-state.json`, and nothing is written back
-into the notes tree. The one exception is `e` in a review session, which hands
-the file to `$EDITOR` — your editor writes it, not this program.
+read**, and no file you wrote by hand is ever written to. Review state lives in
+`~/.local/share/leitner/review-state.json`. The one exception is `e` in a review
+session, which hands the file to `$EDITOR` — your editor writes it, not this
+program.
+
+One file of its own does go in the notes tree: `.leitner-notes.json` beside each
+source directory, holding drive-by notes. It is not markdown, it is a dotfile
+discovery skips, and nothing you wrote is in it. See
+[`notes.md`](notes.md).
 
 Diagnostics are printed to stderr with their code in brackets:
 

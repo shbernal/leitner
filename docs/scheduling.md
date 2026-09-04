@@ -118,6 +118,11 @@ sibling that is then renamed over it. The rename is atomic, so an interrupted
 write cannot leave a half-written state, and killing the terminal mid-session
 loses nothing that was already graded.
 
+Drive-by notes are **not** in this file. They have a different lifecycle — a
+grade is machine-generated and survivable if lost, a hand-written note is not
+reconstructible at all — and they live beside the deck instead, so they travel
+with it. See [`notes.md`](notes.md).
+
 Undo (`u`) is a session-local stack, unwound one action at a time. It restores
 the record a card had before the grade, or removes the record entirely if the
 card was new — so undoing back to the start of a session leaves the state file

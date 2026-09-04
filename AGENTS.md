@@ -30,9 +30,17 @@ Two things are sticky anyway, and neither is about compatibility with a consumer
 ## The rule that matters
 
 **Markdown files are only ever read.** `leitner` conforms to Flashcard Markdown
-as a *consumer*, never a producer. Nothing in `src/` may write into the notes
-tree. The single exception is `e` in a review session, which hands the file to
-`$EDITOR` — the editor writes it, this program does not.
+as a *consumer*, never a producer. Nothing in `src/` may write markdown, and
+nothing may write a file the user authored. The single exception is `e` in a
+review session, which hands the file to `$EDITOR` — the editor writes it, this
+program does not.
+
+One file of its own is written into the notes tree: `.leitner-notes.json` at the
+root of each source directory, the drive-by notes sidecar (`src/notes.ts`,
+`docs/notes.md`). It is a dotfile this program owns end to end, never markdown
+and never something a user wrote by hand. It is in the tree rather than under
+`XDG_DATA_HOME` because a note is about the deck's content and travels with it
+through git or syncthing, where a review schedule deliberately does not.
 
 Scheduling metadata goes in the state file. Never into the markdown.
 
@@ -40,7 +48,7 @@ Scheduling metadata goes in the state file. Never into the markdown.
 
 ```bash
 pnpm install
-pnpm test         # vitest, 15 files
+pnpm test         # vitest, 17 files
 pnpm typecheck    # tsc --noEmit over src *and* tests
 pnpm lint         # oxlint
 pnpm format:check # oxfmt --check
@@ -165,6 +173,9 @@ resize — which is exactly what the review viewport math depends on. Keep it.
   disagree, the specification wins and the disagreement is a bug here.
 - `docs/scheduling.md`: grade transitions, queue order, the state file, config
   keys, and what is deliberately absent (Anki interop, per-deck parameters).
+- `docs/notes.md`: drive-by notes — the sidecar's location and why it is in the
+  tree, the file format, why notes are keyed by reference rather than by card id,
+  and the orphan policy.
 - `FOLLOW-UPS.md`: discoveries parked out of scope, with the reason they were not
   done now. Add to it rather than letting them accumulate mid-task. It is kept
   out of the repository on purpose — `.git/info/exclude` names it — so it is a
