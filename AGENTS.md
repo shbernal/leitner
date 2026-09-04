@@ -206,6 +206,11 @@ changing the prose is how they rot.
   a temp directory with `--state` pointed somewhere disposable.
 - `--state` and `--out` both expand `~`; check where a command will write before
   running it.
+- `note` and `n` write a sidecar into the source directory itself, which `--state`
+  does not redirect — so a copy of the deck tree, not `tests/fixtures/`, is what
+  a note is tried out against. `sourceDirs` in a temp `XDG_CONFIG_HOME` is the
+  lever, because `note` spends its positional on the card reference and takes no
+  `dir` argument.
 - Ask before creating a tag, a release, or an npm publish. Publishing a GitHub
   release **is** an npm publish now — the workflow fires on it — and a version
   cannot be unpublished after 72 hours. There is no separate confirmation step.
