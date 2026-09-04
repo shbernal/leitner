@@ -30,6 +30,7 @@ Commands:
   init [dir...]      Record where your flashcards live, then exit
   review [dir...]    Interactive terminal review session
   list [dir...]      Print decks and card counts
+  cards [dir...]     Print every card's reference and title
   stats [dir...]     Print card/due/suspended counts and parse warnings
   export [dir...]    Write review state as a portable JSON bundle
   import <file>      Merge a review-state bundle into the local state
@@ -63,7 +64,7 @@ Review keys:
   When a deck is finished, enter goes back to the deck picker.
 `
 
-export type Command = 'init' | 'review' | 'list' | 'stats' | 'export' | 'import'
+export type Command = 'init' | 'review' | 'list' | 'cards' | 'stats' | 'export' | 'import'
 
 export type CliOptions = {
   command: Command
@@ -122,7 +123,7 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     process.stdout.write(USAGE)
     return null
   }
-  if (!['init', 'review', 'list', 'stats', 'export', 'import'].includes(command)) {
+  if (!['init', 'review', 'list', 'cards', 'stats', 'export', 'import'].includes(command)) {
     throw new Error(`unknown command: ${command}\n\n${USAGE}`)
   }
   // `type` is a user extension the format deliberately leaves undefined, so there is
@@ -227,6 +228,36 @@ export async function runList(options: CliOptions): Promise<void> {
     )
   }
   process.stdout.write(`\n${decks.length} decks, ${cards.length} cards\n`)
+}
+
+/**
+ * One line per card: its reference and its title. Deck-level counts are `list`'s
+ * job; this is the card-level listing, and it exists so a card can be named —
+ * found here, pasted into a conversation, handed back as an argument.
+ *
+ * Deliberately reads no state file. Which cards are due is a scheduling question
+ * and `stats` answers it; addressing a card is not.
+ */
+export async function runCards(options: CliOptions): Promise<void> {
+  const parsed = await parseDirectories(options.sourceDirs)
+  printWarnings(parsed)
+
+  const cards = filterCards(parsed.cards, options)
+
+  // Same reasoning as `list`: a reference is only unique inside its own source
+  // directory, so the root earns a column as soon as there are two.
+  const roots = options.sourceDirs.length > 1 ? options.sourceDirs.map(contractHome) : []
+  const rootWidth = Math.max(4, ...roots.map((root) => root.length))
+  const rootColumn = (root: string) => (roots.length === 0 ? '' : `${root.padEnd(rootWidth)}  `)
+
+  const refWidth = Math.max(4, ...cards.map((card) => card.ref.length))
+  process.stdout.write(`${rootColumn('root')}${'card'.padEnd(refWidth)}  title\n`)
+  for (const card of cards) {
+    process.stdout.write(
+      `${rootColumn(contractHome(card.rootDir))}${card.ref.padEnd(refWidth)}  ${card.title}\n`,
+    )
+  }
+  process.stdout.write(`\n${cards.length} cards\n`)
 }
 
 export async function runStats(options: CliOptions): Promise<void> {
@@ -428,6 +459,8 @@ export async function main(argv: string[]): Promise<void> {
   switch (options.command) {
     case 'list':
       return runList(options)
+    case 'cards':
+      return runCards(options)
     case 'stats':
       return runStats(options)
     case 'export':

@@ -8,6 +8,7 @@ import {
   parseCli,
   runExport,
   runImport,
+  runCards,
   runList,
   runStats,
   type CliOptions,
@@ -104,6 +105,13 @@ describe('parseCli', () => {
   it('prints usage when no command is given', async () => {
     expect(await parseCli([])).toBeNull()
     expect(stdout).toContain('Usage: leitner')
+  })
+
+  it('accepts the card listing as a command', async () => {
+    await writeConfig({ sourceDirs: ['/decks'] })
+    const parsed = await parseCli(['cards'])
+    expect(parsed?.command).toBe('cards')
+    expect(parsed?.sourceDirs).toEqual(['/decks'])
   })
 
   it('rejects an unknown command', async () => {
@@ -228,6 +236,34 @@ describe('list command', () => {
   it('leaves the root out with a single source directory', async () => {
     await runList(options('list'))
     expect(stdout).not.toContain(fixtures)
+  })
+})
+
+describe('cards command', () => {
+  it('prints one line per card, with the reference a card is addressed by', async () => {
+    await runCards(options('cards'))
+    expect(stdout).toContain('vocabulary-words#coax')
+    expect(stdout).toContain('coax')
+    expect(stdout).toContain('8 cards')
+    expect(stderr).toContain('empty.md')
+  })
+
+  it('filters by deck', async () => {
+    await runCards(options('cards', { deck: 'vocabulary-words' }))
+    expect(stdout).toContain('vocabulary-words#coax')
+    expect(stdout).not.toContain('with-frontmatter#first-card')
+    expect(stdout).toContain('1 cards')
+  })
+
+  it('names the root of every card once a second source directory is in play', async () => {
+    const other = path.join(dir, 'work')
+    await fs.mkdir(other, { recursive: true })
+    await fs.writeFile(path.join(other, 'spanish.md'), '# Spanish\n\n## Hola\n\n***\n\nhi\n')
+
+    await runCards(options('cards', { sourceDirs: [fixtures, other] }))
+    expect(stdout).toContain('spanish#hola')
+    expect(stdout).toContain(other)
+    expect(stdout).toContain('9 cards')
   })
 })
 

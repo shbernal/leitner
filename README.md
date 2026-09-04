@@ -38,6 +38,7 @@ pnpm build
 ```bash
 leitner init   [dir...]  # record where your flashcards live
 leitner list   [dir...]  # decks and card counts
+leitner cards  [dir...]  # every card's reference and title
 leitner stats  [dir...]  # totals, due/new/suspended, parse warnings
 leitner review [dir...]  # interactive review session
 leitner export [dir...]  # review state as a portable JSON bundle
@@ -45,6 +46,26 @@ leitner import <file>    # merge a bundle into local state
 ```
 
 `dir` defaults to `sourceDirs` from `~/.config/leitner/config.json`.
+
+### Naming a card
+
+`leitner cards` prints one line per card: the card's *reference*, then its
+title. A reference is `deckSlug#headingSlug` — `spanish-verbs#ser-vs-estar` —
+and it is how a card is named outside the file it lives in: readable enough to
+say out loud, and stable enough to paste somewhere and come back to.
+
+```bash
+leitner cards --deck spanish-verbs
+leitner cards | grep estar
+```
+
+The listing honours `--deck`, `--type` and `--untyped`, and reads no review
+state — which cards are due is `stats`'s question, not this one.
+
+Two headings in a file that slugify alike take an ordinal (`~1`, `~2`), and the
+file is reported as a warning, because deleting one of them shifts the other's
+number. [`docs/format.md`](docs/format.md) has the derivation and what edits a
+reference survives.
 
 ### More than one directory
 
