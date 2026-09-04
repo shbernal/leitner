@@ -2,7 +2,7 @@ import path from 'node:path'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
 import { defaultConfigPath, writeHiddenDecks } from '../config.js'
-import { applyRecordMoves, reconcileCardIds } from '../edit.js'
+import { applyNoteMoves, applyRecordMoves, reconcileCardIds, reconcileCardRefs } from '../edit.js'
 import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
 import { addNote, type Note, type NotesFile, notesFor, saveNotes } from '../notes.js'
@@ -361,6 +361,22 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     const moves = reconcileCardIds(before, after)
     const carried = applyRecordMoves(state, moves, after)
 
+    /* The one rename this program can see is the one made through here, so it is
+       also the only one whose notes can be carried rather than orphaned. */
+    const { rootDir } = target.card
+    const noteFile = notes.get(rootDir) ?? EMPTY_NOTES
+    const moved = applyNoteMoves(noteFile, reconcileCardRefs(before, after), after)
+    let noted = ''
+    if (moved.carried > 0) {
+      setNotes((current) => new Map(current).set(rootDir, moved.notes))
+      noted = ` · ${moved.carried} note${moved.carried === 1 ? '' : 's'} followed the rename`
+      try {
+        await persistNotes(rootDir, moved.notes)
+      } catch (error) {
+        noted = ` · notes moved for this session only: ${String(error)}`
+      }
+    }
+
     // Splice the file's cards back where they were so deck order survives.
     const next: Flashcard[] = []
     let spliced = false
@@ -401,7 +417,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     const gone = position < 0 ? ' · that card is gone, showing the next one' : ''
     const kept =
       carried > 0 ? ` · ${carried} record${carried === 1 ? '' : 's'} followed the edit` : ''
-    setMessage(`edited ${sourcePath}${kept}${gone}`)
+    setMessage(`edited ${sourcePath}${kept}${noted}${gone}`)
   }
 
   useInput((input, key) => {

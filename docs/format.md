@@ -159,7 +159,9 @@ card's position:
 
 Editing from inside a review session (`e`) is the exception: it pairs the cards
 before and after the edit and carries the records across, so a heading rename
-made there keeps its history. A rename made outside the session does not.
+made there keeps its history. Drive-by notes ride on the same pairing and follow
+the reference — see [`notes.md`](notes.md). A rename made outside the session
+does neither.
 
 The orphaned records are not cleaned up automatically; `export --prune` drops
 records whose cards no longer exist.

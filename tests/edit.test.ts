@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { applyRecordMoves, reconcileCardIds } from '../src/edit.js'
+import {
+  applyNoteMoves,
+  applyRecordMoves,
+  reconcileCardIds,
+  reconcileCardRefs,
+} from '../src/edit.js'
+import type { Note, NotesFile } from '../src/notes.js'
 import { emptyState, type ReviewState } from '../src/state.js'
 import type { Flashcard, ReviewRecord } from '../src/types.js'
 
-function makeCard(id: string, title: string): Flashcard {
+function makeCard(id: string, title: string, ref = `deck#${id}`): Flashcard {
   return {
     id,
     deckId: 'deck',
@@ -13,7 +19,7 @@ function makeCard(id: string, title: string): Flashcard {
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',
-    ref: `deck#${id}`,
+    ref,
     title,
     frontBody: '',
     back: '- fact',
@@ -148,5 +154,96 @@ describe('applyRecordMoves', () => {
     expect(state.records['a']?.reps).toBe(1)
     expect(state.records['b']?.reps).toBe(2)
     expect(state.records['c']?.reps).toBe(3)
+  })
+})
+
+function note(text: string, createdAt: string): Note {
+  return { text, createdAt, cardTitle: 'Groups', sourcePath: 'deck.md' }
+}
+
+function notesFile(notes: Record<string, Note[]>): NotesFile {
+  return { version: 1, notes }
+}
+
+describe('reconcileCardRefs', () => {
+  it('reports nothing when the edit left every heading alone', () => {
+    const cards = [makeCard('a', 'Groups', 'deck#groups')]
+    expect(reconcileCardRefs(cards, cards)).toEqual([])
+  })
+
+  it('follows a renamed heading', () => {
+    const before = [makeCard('a', 'Groups', 'deck#groups')]
+    const after = [makeCard('a2', 'What is a group?', 'deck#what-is-a-group')]
+    expect(reconcileCardRefs(before, after)).toEqual([
+      { from: 'deck#groups', to: 'deck#what-is-a-group' },
+    ])
+  })
+
+  /* The reason these are derived from the pairing rather than from the id moves:
+     an insertion moves every later id and no reference at all. */
+  it('reports nothing for an insertion, which moves ids and no references', () => {
+    const before = [makeCard('a', 'Groups', 'deck#groups')]
+    const after = [makeCard('x', 'Sets', 'deck#sets'), makeCard('a2', 'Groups', 'deck#groups')]
+    expect(reconcileCardIds(before, after)).toEqual([{ from: 'a', to: 'a2' }])
+    expect(reconcileCardRefs(before, after)).toEqual([])
+  })
+
+  it('reports nothing when two cards were renamed at once, as ids do', () => {
+    const before = [makeCard('a', 'Groups', 'deck#groups'), makeCard('b', 'Rings', 'deck#rings')]
+    const after = [makeCard('a2', 'Group?', 'deck#group'), makeCard('b2', 'Ring?', 'deck#ring')]
+    expect(reconcileCardRefs(before, after)).toEqual([])
+  })
+})
+
+describe('applyNoteMoves', () => {
+  const moved = makeCard('a2', 'What is a group?', 'deck#what-is-a-group')
+
+  it('re-keys the notes of a renamed card and leaves the others alone', () => {
+    const file = notesFile({
+      'deck#groups': [note('front gives it away', '2026-09-01T00:00:00.000Z')],
+      'deck#rings': [note('fine as it is', '2026-09-02T00:00:00.000Z')],
+    })
+    const result = applyNoteMoves(file, [{ from: 'deck#groups', to: moved.ref }], [moved])
+
+    expect(result.carried).toBe(1)
+    expect(Object.keys(result.notes.notes).sort()).toEqual(['deck#rings', moved.ref])
+    expect(result.notes.notes[moved.ref]?.[0]?.text).toBe('front gives it away')
+  })
+
+  // A stale title on a note that did follow its card only shows up much later.
+  it('refreshes the card title and path the moved notes carry', () => {
+    const file = notesFile({ 'deck#groups': [note('thin', '2026-09-01T00:00:00.000Z')] })
+    const result = applyNoteMoves(file, [{ from: 'deck#groups', to: moved.ref }], [moved])
+    expect(result.notes.notes[moved.ref]?.[0]?.cardTitle).toBe('What is a group?')
+    expect(result.notes.notes[moved.ref]?.[0]?.sourcePath).toBe('deck.md')
+  })
+
+  /* Two schedules cannot merge, but two remarks about what is now one card are
+     both still true — so unlike a record, an arriving note is never dropped. */
+  it('concatenates into an occupied reference, oldest note first', () => {
+    const file = notesFile({
+      'deck#groups': [note('older', '2026-09-01T00:00:00.000Z')],
+      [moved.ref]: [note('newer', '2026-09-03T00:00:00.000Z')],
+    })
+    const result = applyNoteMoves(file, [{ from: 'deck#groups', to: moved.ref }], [moved])
+    expect(result.notes.notes[moved.ref]?.map((entry) => entry.text)).toEqual(['older', 'newer'])
+  })
+
+  it('carries a chain of renames without one clobbering the next', () => {
+    const file = notesFile({
+      'deck#a': [note('first', '2026-09-01T00:00:00.000Z')],
+      'deck#b': [note('second', '2026-09-02T00:00:00.000Z')],
+    })
+    const result = applyNoteMoves(file, [
+      { from: 'deck#a', to: 'deck#b' },
+      { from: 'deck#b', to: 'deck#c' },
+    ])
+    expect(result.notes.notes['deck#b']?.map((entry) => entry.text)).toEqual(['first'])
+    expect(result.notes.notes['deck#c']?.map((entry) => entry.text)).toEqual(['second'])
+  })
+
+  it('leaves a file alone when nothing moved', () => {
+    const file = notesFile({ 'deck#groups': [note('thin', '2026-09-01T00:00:00.000Z')] })
+    expect(applyNoteMoves(file, [])).toEqual({ notes: file, carried: 0 })
   })
 })

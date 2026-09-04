@@ -73,6 +73,17 @@ so inserting a card above another moves the sha1 and leaves the reference alone.
 What breaks a reference is a heading rename or the deck file being moved or
 renamed — the same edits that break the card id, minus the positional ones.
 
+A rename made from inside a review session with `e` is the exception: the
+session pairs the cards before and after the edit, so the notes follow the card
+to its new reference, with the title they carry brought up to date. It is the
+only rename this program ever sees. The same rename made in your own editor,
+outside a session, is invisible to it and orphans the notes — exactly as it
+orphans the review record.
+
+Two cards merging into one reference keep both sets of notes, concatenated
+oldest first. Review records cannot merge that way and one of them is dropped;
+two remarks about what is now a single card are both still true.
+
 ## Writing and reading them
 
 ```bash

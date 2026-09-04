@@ -570,7 +570,7 @@ describe('ReviewApp editing', () => {
    * null leaves it out so the real spawn runs, which is how the configured
    * command is observed at all.
    */
-  async function openDeck(runner: EditorRunner | null, editor?: string) {
+  async function openDeck(runner: EditorRunner | null, editor?: string, extra: Overrides = {}) {
     deckPath = path.join(dir, 'algebra.md')
     await fs.writeFile(deckPath, DECK, 'utf8')
     const parsed = await parseFile(deckPath, dir)
@@ -588,6 +588,7 @@ describe('ReviewApp editing', () => {
         displayablePngs={new Set()}
         openEditor={runner === null ? undefined : openEditor}
         editor={editor}
+        {...extra}
       />,
     )
     ui = rendered
@@ -660,6 +661,51 @@ describe('ReviewApp editing', () => {
     await writtenState((written) => {
       expect(written.records[renamed]?.reps).toBe(3)
     })
+  })
+
+  /* The rename made through `e` is the only one this program ever sees, so it is
+     also the only one whose notes can follow the card instead of being orphaned. */
+  it('carries the notes to the new reference when the edit renames the heading', async () => {
+    const written = new Map<string, NotesFile>()
+    const { ui } = await openDeck(
+      rewriter((current) => current.replace('## What is a group?', '## What is a group, really?')),
+      undefined,
+      {
+        notes: new Map([
+          [
+            dir,
+            {
+              version: 1,
+              notes: {
+                'algebra#what-is-a-group': [
+                  {
+                    text: 'the front gives it away',
+                    createdAt: '2026-09-01T00:00:00.000Z',
+                    cardTitle: 'What is a group?',
+                    sourcePath: 'algebra.md',
+                  },
+                ],
+              },
+            } satisfies NotesFile,
+          ],
+        ]),
+        persistNotes: async (rootDir: string, file: NotesFile) => {
+          written.set(rootDir, file)
+        },
+      },
+    )
+
+    await ui.press('e')
+    await settled(() => {
+      expect(ui.frame()).toContain('1 note followed the rename')
+    })
+
+    const carried = written.get(dir)?.notes['algebra#what-is-a-group-really']
+    expect(carried?.[0]?.text).toBe('the front gives it away')
+    // The title on the note follows the card too, or it lies from here on.
+    expect(carried?.[0]?.cardTitle).toBe('What is a group, really?')
+    expect(written.get(dir)?.notes['algebra#what-is-a-group']).toBeUndefined()
+    expect(ui.frame()).toContain('📝 1')
   })
 
   it('drops a card deleted in the editor and moves on', async () => {

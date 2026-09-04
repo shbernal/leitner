@@ -230,6 +230,10 @@ practice pass schedules nothing, and a note is not scheduling.
 If the file cannot be written the session says so and keeps the note for the
 rest of the session rather than dropping it on the floor.
 
+Renaming a heading through `e` carries the card's notes to its new reference,
+the way it already carries the review record. A rename made in your own editor,
+outside a session, orphans both.
+
 ### Practising a deck
 
 `p` opens a deck outside the schedule: every card in it, in deck order,
