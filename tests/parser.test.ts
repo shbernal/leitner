@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cardId, parseDirectories, parseDirectory, parseFile, slugify } from '../src/parser.js'
+import { cardRef } from '../src/refs.js'
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
@@ -118,6 +119,24 @@ describe('parseFile', () => {
     expect(result.cards[0]?.back).toContain('Gently persuade')
   })
 
+  it('names each card with a reference made of the deck and heading slugs', async () => {
+    const result = await parseFile(path.join(fixtures, 'vocabulary', 'words.md'), fixtures)
+    expect(result.cards[0]?.ref).toBe('vocabulary-words#coax')
+    expect(result.cards[0]?.ref).toBe(cardRef('vocabulary-words', 'coax'))
+  })
+
+  it('ordinals every reference in a file with two headings that slugify alike', async () => {
+    const result = await parseFile(path.join(fixtures, 'no-frontmatter.md'), fixtures)
+    expect(result.cards.map((c) => c.ref)).toEqual([
+      'no-frontmatter#geography~1',
+      'no-frontmatter#geography~2',
+    ])
+    // The ordinal shifts if one of them is deleted, so the file is worth naming.
+    const warning = result.warnings.find((w) => w.message.includes('reference'))
+    expect(warning?.code).toBeNull()
+    expect(warning?.cardIndex).toBeNull()
+  })
+
   it('warns on empty files and files without cards', async () => {
     const empty = await parseFile(path.join(fixtures, 'empty.md'), fixtures)
     expect(empty.cards).toHaveLength(0)
@@ -141,7 +160,7 @@ describe('parseDirectory', () => {
       'with-frontmatter',
     ])
     expect(result.cards).toHaveLength(8)
-    expect(result.warnings).toHaveLength(2)
+    expect(result.warnings).toHaveLength(3)
   })
 
   // A missing root is a broken configuration, not an empty collection. Without

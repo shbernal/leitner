@@ -13,6 +13,7 @@ const card: Flashcard = {
   sourceMtimeMs: 0,
   sourceLine: 1,
   type: 'content',
+  ref: 'deck#card-1',
   title: 'Card',
   frontBody: '',
   back: '- fact',

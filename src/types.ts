@@ -28,6 +28,12 @@ export type Flashcard = {
    * against and no value that stands for "declared nothing" — `--untyped` does.
    */
   type?: string
+  /**
+   * `deckSlug#headingSlug`: the name a person can say, type and paste back as a
+   * command argument. Distinct from `id` above, which is the review-state key and
+   * is neither shown nor accepted as input. See `src/refs.ts`.
+   */
+  ref: string
   /** The `##` heading. The card's identity, and the front's first part. */
   title: string
   /** Front content below the heading, above the `***`; empty when there is none. */

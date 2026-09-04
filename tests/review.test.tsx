@@ -21,6 +21,7 @@ function makeCard(id: string, title: string, body: string): Flashcard {
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',
+    ref: `algebra#${id}`,
     title,
     frontBody: '',
     back: body,

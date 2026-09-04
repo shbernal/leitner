@@ -118,22 +118,39 @@ holding `spanish.md` with the same first heading name one card id between them,
 so the two cards share one review record and grading one schedules the other.
 That is reported as a warning naming both files, and both cards are kept.
 
+**Card reference** is `deckSlug#headingSlug`: `vocabulary-words#coax`. It is the
+card's readable name: something a person can say, type and paste, as opposed to
+the id above, which is the review-state key and is neither printed nor accepted
+as input. A reference addresses a card; it never persists one, and nothing is
+keyed on it.
+
+Because it drops `headingIndex`, a reference survives an edit the sha1 does not:
+inserting a card above another leaves every reference below it unchanged. It
+breaks on the same two things the id does, a heading rename and a file move.
+
+Two `##` headings in one file that slugify identically would name one reference
+between them, so **every** occurrence takes a 1-based ordinal instead —
+`geography~1`, `geography~2` — and none is left bare. A bare first occurrence
+would mean deleting that card promotes the second into its reference. The file
+is reported as a warning: a `~` in a reference means the deck has duplicate
+headings, and the ordinals shift if one of the cards is deleted.
+
 The format guarantees the property this relies on: editing a card's body, its
 tags, or its front content below the heading MUST NOT change the card's identity
 (§5.2). What it does not protect against is a change to the heading or to the
 card's position:
 
-| Edit | History survives? |
-| --- | --- |
-| Editing a card's body, front region included | yes |
-| Adding or removing tags | yes |
-| Changing frontmatter | yes |
-| Reformatting, reflowing, adding images | yes |
-| Renaming a `##` heading | **no** |
-| Inserting or deleting a card above it | **no** — every later card shifts |
-| Reordering cards | **no** |
-| Renaming or moving the deck file | **no** — the whole deck resets |
-| Moving a deck file between source directories | **no**, unless the path inside each is identical |
+| Edit | History survives? | Reference survives? |
+| --- | --- | --- |
+| Editing a card's body, front region included | yes | yes |
+| Adding or removing tags | yes | yes |
+| Changing frontmatter | yes | yes |
+| Reformatting, reflowing, adding images | yes | yes |
+| Renaming a `##` heading | **no** | **no** |
+| Inserting or deleting a card above it | **no** — every later card shifts | yes |
+| Reordering cards | **no** | yes |
+| Renaming or moving the deck file | **no** — the whole deck resets | **no** |
+| Moving a deck file between source directories | **no**, unless the path inside each is identical | **no**, same condition |
 
 Editing from inside a review session (`e`) is the exception: it pairs the cards
 before and after the edit and carries the records across, so a heading rename
@@ -165,7 +182,7 @@ failure. One bad file does not stop the rest of the directory parsing.
 | Prose only, no headings | warning, no deck |
 | Invalid YAML frontmatter | `unrepresentable-content`, the block skipped, no file tags and no type |
 | A `##` heading with no text | `malformed-card-skipped`, the cards around it still load |
-| Duplicate `##` headings | two distinct cards, distinct ids — valid, not a warning |
+| Duplicate `##` headings | two distinct cards, distinct ids — valid; warned about because both references take an ordinal |
 | A card with a heading and no body | a card with an empty back — valid, not a warning |
 | A second `#` heading | `stray-h1`; the region below it belongs to no card |
 | Unreadable file / parse crash | warning, file skipped |

@@ -13,6 +13,7 @@ function makeCard(id: string, title: string): Flashcard {
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',
+    ref: `deck#${id}`,
     title,
     frontBody: '',
     back: '- fact',

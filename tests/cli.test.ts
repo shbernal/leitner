@@ -239,7 +239,7 @@ describe('stats command', () => {
     expect(stdout).toContain('new cards:       8')
     expect(stdout).toContain('due cards:       0')
     expect(stdout).toContain('suspended cards: 0')
-    expect(stdout).toContain('parse warnings:  2')
+    expect(stdout).toContain('parse warnings:  3')
   })
 
   it('lists every source directory', async () => {

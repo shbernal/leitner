@@ -15,6 +15,7 @@ function makeCard(id: string): Flashcard {
     sourceMtimeMs: 0,
     sourceLine: 1,
     type: 'content',
+    ref: `deck#${id}`,
     title: id,
     frontBody: '',
     back: '- fact',

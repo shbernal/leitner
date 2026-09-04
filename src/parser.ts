@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import fastGlob from 'fast-glob'
 import { parseDeck } from './deck.js'
+import { assignRefs, cardRef } from './refs.js'
 import type { CardImage, Deck, Flashcard, ParseResult, ParseWarning } from './types.js'
 
 export function slugify(text: string): string {
@@ -70,7 +71,11 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
   const type =
     typeof parsed.frontmatter['type'] === 'string' ? parsed.frontmatter['type'] : undefined
 
+  const headingSlugs = parsed.cards.map((card) => slugify(card.headingText))
+  const { refs, duplicated } = assignRefs(deckId, headingSlugs)
+
   const cards: Flashcard[] = parsed.cards.map((card, headingIndex) => {
+    const headingSlug = slugify(card.headingText)
     const images: CardImage[] = card.images.map((image) => ({
       alt: image.alt,
       src: image.src,
@@ -78,7 +83,9 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
     }))
 
     return {
-      id: cardId(relPath, slugify(card.headingText), headingIndex),
+      id: cardId(relPath, headingSlug, headingIndex),
+      // `refs` holds one entry per card in this order, so the fallback is unreachable.
+      ref: refs[headingIndex] ?? cardRef(deckId, headingSlug),
       deckId,
       deckTitle,
       sourcePath,
@@ -95,6 +102,17 @@ export async function parseFile(sourcePath: string, rootDir: string): Promise<Pa
       tags: card.tags,
     }
   })
+
+  if (duplicated.length > 0) {
+    warnings.push({
+      sourcePath,
+      message: `two or more cards share the reference ${duplicated
+        .map((slug) => `\`${deckId}#${slug}\``)
+        .join(', ')}, so their references carry an ordinal that shifts if one is deleted`,
+      code: null,
+      cardIndex: null,
+    })
+  }
 
   /* §7: an image that cannot be resolved is reported, never dropped in silence. The
      check is here rather than in deck.ts because whether a path resolves is a fact
