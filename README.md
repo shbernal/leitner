@@ -203,6 +203,7 @@ j/k, arrows  move selection / scroll body
 H            hide the deck under the cursor, or show it again (picker)
 s            suspend card
 u            undo last grade
+n            note the card: write one, or look at the ones it has
 e            edit card in $EDITOR
 i            image preview (needs --images)
 b            back to the deck picker (done screen)
@@ -213,6 +214,21 @@ q            quit
 The session runs on the terminal's alternate screen, like `vim` or `less`, so
 it leaves the scrollback untouched. The counts of cards reviewed and practised
 are printed on the normal screen once it exits.
+
+#### Noting a card mid-session
+
+`n` opens a small composer under the card: the notes it already has, and a line
+to write another. Enter saves and closes, enter on an empty line just closes —
+so `n` is also how you read them — and esc cancels. Grading keys do nothing
+while it is open.
+
+The note goes to `.leitner-notes.json` in the source directory the card came
+from, the same file `leitner note` writes, and a card that has notes shows a
+📝 count beside its title. Notes can be written during a practice pass: a
+practice pass schedules nothing, and a note is not scheduling.
+
+If the file cannot be written the session says so and keeps the note for the
+rest of the session rather than dropping it on the floor.
 
 ### Practising a deck
 

@@ -89,6 +89,12 @@ one.
 
 `stats` counts notes and, separately, the orphans among them.
 
+Inside a review session, `n` opens a composer on the card in front of you and
+writes to the sidecar of that card's own root — the same file, reached without
+leaving the session. A practice pass can write notes even though it schedules
+nothing: the rule a note follows is the one about markdown, which it is not,
+not the one about review state.
+
 ## Orphans are surfaced, never pruned
 
 A note whose reference no longer resolves stays in the file. Nothing deletes it,

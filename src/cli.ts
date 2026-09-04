@@ -75,7 +75,7 @@ Options:
 
 Review keys:
   space/enter reveal · 1-4 grade · j/k scroll · s suspend · u undo
-  e edit in $EDITOR · / search · i image preview · q quit
+  n note the card · e edit in $EDITOR · / search · i image preview · q quit
   When a deck is finished, enter goes back to the deck picker.
 `
 
@@ -581,6 +581,7 @@ export async function runReview(options: CliOptions): Promise<void> {
   // every deck; only the type filter narrows the card pool up front.
   const cards = filterCards(parsed.cards, { type: options.type, untyped: options.untyped })
   const state = await loadState(options.statePath)
+  const notes = await loadAllNotes(options.sourceDirs)
 
   /* Cheap pre-check so `review` exits cleanly instead of opening a deck picker
      with nothing behind it. It asks about cards, not about the queue: a
@@ -637,6 +638,7 @@ export async function runReview(options: CliOptions): Promise<void> {
       : { ...support, enabled: false, reason: 'pass --images to enable previews' },
     displayablePngs,
     editor: options.editor,
+    notes,
   })
 }
 

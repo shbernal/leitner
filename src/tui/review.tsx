@@ -1,9 +1,11 @@
+import path from 'node:path'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
 import { defaultConfigPath, writeHiddenDecks } from '../config.js'
 import { applyRecordMoves, reconcileCardIds } from '../edit.js'
 import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence, type ImageSupport } from '../images.js'
+import { addNote, type Note, type NotesFile, notesFor, saveNotes } from '../notes.js'
 import { parseFile } from '../parser.js'
 import {
   buildPracticeQueue,
@@ -41,6 +43,10 @@ export type ReviewSessionOptions = {
   editor?: string | null
   /** Overridable so tests can drive the edit flow without spawning $EDITOR. */
   openEditor?: EditorRunner
+  /** The collection's drive-by notes, keyed by source root, as `loadAllNotes` gives them. */
+  notes?: Map<string, NotesFile>
+  /** Where `n` writes them; overridable for the same reason `persistHiddenDecks` is. */
+  persistNotes?: (rootDir: string, file: NotesFile) => Promise<void>
 }
 
 type UndoEntry = {
@@ -55,6 +61,11 @@ const GRADE_KEYS: Record<string, Grade> = {
   '3': 'good',
   '4': 'easy',
 }
+
+const EMPTY_NOTES: NotesFile = { version: 1, notes: {} }
+
+/** How many of a card's notes the composer shows above the input line. */
+const NOTE_PREVIEW = 3
 
 /** Chrome around the card box: header, borders, hints, message. */
 const CHROME_ROWS = 7
@@ -119,6 +130,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
      config the same way: the lever on both is XDG_CONFIG_HOME. */
   const persistHiddenDecks =
     options.persistHiddenDecks ?? ((next: string[]) => writeHiddenDecks(defaultConfigPath(), next))
+  const persistNotes = options.persistNotes ?? saveNotes
   const { exit, waitUntilRenderFlush, suspendTerminal } = useApp()
   const { stdout } = useStdout()
 
@@ -152,10 +164,17 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [search, setSearch] = useState('')
   const [imageMode, setImageMode] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [noting, setNoting] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [notes, setNotes] = useState<Map<string, NotesFile>>(
+    () => new Map(options.notes ?? new Map()),
+  )
 
   // Re-renders on SIGWINCH, so the viewport follows the terminal as it resizes.
   const { rows, columns } = useWindowSize()
-  const viewportHeight = Math.max(5, rows - CHROME_ROWS)
+  /* The composer replaces the one-line hint with a block of its own, so the card
+     box gives those rows back rather than pushing its own top off the screen. */
+  const viewportHeight = Math.max(5, rows - CHROME_ROWS - (noting ? NOTE_PREVIEW + 2 : 0))
   const bodyWidth = Math.max(20, columns - 4)
 
   const selectDeck = (sourcePaths: string[], nextMode: SessionMode = 'review') => {
@@ -222,6 +241,34 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   }, [revealed, frontLines, backLines, bodyWidth])
 
   const maxScroll = Math.max(0, lines.length - viewportHeight)
+
+  const cardNotes = item ? notesFor(notes.get(item.card.rootDir) ?? EMPTY_NOTES, item.card.ref) : []
+
+  /* A note is the user's own writing about the deck's content, so it is governed
+     by the rule about markdown — which it is not — and not by the one about
+     scheduling. That is why this is reachable in a practice pass, where `s` and
+     the grade keys are not: a read-through is when a remark most often occurs. */
+  const commitNote = async (target: QueueItem, text: string) => {
+    const { rootDir, ref } = target.card
+    const file = notes.get(rootDir) ?? EMPTY_NOTES
+    const note: Note = {
+      text,
+      createdAt: new Date().toISOString(),
+      // The card as it is now, so the note survives its reference being broken.
+      cardTitle: target.card.title,
+      sourcePath: path.relative(rootDir, target.card.sourcePath),
+    }
+    const next = addNote(file, ref, note)
+    /* Kept in the session either way. An unwritable tree costs the note when the
+       session ends, not the moment it is typed. */
+    setNotes((current) => new Map(current).set(rootDir, next))
+    try {
+      await persistNotes(rootDir, next)
+      setMessage(`noted on ${ref}`)
+    } catch (error) {
+      setMessage(`note kept for this session only: ${String(error)}`)
+    }
+  }
   const previewable = useMemo(
     () => (item ? item.card.images.filter((image) => displayablePngs.has(image.path)) : []),
     [item, displayablePngs],
@@ -379,6 +426,35 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       setMessage('search cleared')
     }
 
+    /* One key, one mode: `n` is both "write a note" and "see the notes", and the
+       composer owns the keyboard while it is up so a grade key cannot fire into it. */
+    if (noting) {
+      if (key.escape) {
+        setNoting(false)
+        setDraft('')
+        setMessage('note cancelled')
+        return
+      }
+      if (key.return) {
+        setNoting(false)
+        const text = draft.trim()
+        setDraft('')
+        // An empty input closes without writing, so `n` is a safe way to look.
+        if (text === '' || !item) {
+          setMessage('closed notes')
+          return
+        }
+        void commitNote(item, text)
+        return
+      }
+      if (key.backspace || key.delete) {
+        setDraft((d) => d.slice(0, -1))
+        return
+      }
+      if (input && !key.ctrl && !key.meta) setDraft((d) => d + input)
+      return
+    }
+
     if (searching) {
       if (key.escape) {
         clearSearch()
@@ -488,6 +564,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
        rather than ignored: silence here reads as a dropped keypress. */
     if (mode === 'practice' && (input === 's' || GRADE_KEYS[input] !== undefined)) {
       setMessage('a practice pass schedules nothing · space/enter for the next card')
+      return
+    }
+    if (input === 'n') {
+      setNoting(true)
+      setDraft('')
       return
     }
     if (input === 'e') {
@@ -626,7 +707,10 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         paddingX={1}
         minHeight={viewportHeight + 2}
       >
-        <Text bold>{item.card.title}</Text>
+        <Text bold>
+          {item.card.title}
+          {cardNotes.length > 0 ? <Text dimColor>{`  📝 ${cardNotes.length}`}</Text> : ''}
+        </Text>
         <Box flexDirection="column" marginTop={1}>
           {visible.map((line, i) => (
             <MarkdownLine key={scroll + i} line={line} />
@@ -643,13 +727,29 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
           )}
         </Box>
       </Box>
-      {searching ? (
+      {noting ? (
+        <Box flexDirection="column">
+          {/* Only the last few: the frame is sized against the terminal, and a card
+              with a dozen notes would push the card box off the top of it. */}
+          {cardNotes.length > NOTE_PREVIEW && (
+            <Text dimColor>… {cardNotes.length - NOTE_PREVIEW} earlier</Text>
+          )}
+          {cardNotes.slice(-NOTE_PREVIEW).map((note, i) => (
+            <Text key={note.createdAt + String(i)} dimColor>
+              {cardNotes.length - Math.min(cardNotes.length, NOTE_PREVIEW) + i + 1}. {note.text}
+            </Text>
+          ))}
+          {cardNotes.length === 0 && <Text dimColor>no notes on this card yet</Text>}
+          <Text color="yellow">note: {draft}▏</Text>
+          <Text dimColor>enter saves · empty enter closes · esc cancels</Text>
+        </Box>
+      ) : searching ? (
         <Text color="yellow">/{search}▏</Text>
       ) : (
         <Text dimColor>
           {mode === 'practice'
-            ? 'space reveal/next · j/k scroll · e edit · / search'
-            : 'space reveal · 1-4 grade · j/k scroll · s suspend · u undo · e edit · / search'}
+            ? 'space reveal/next · j/k scroll · n note · e edit · / search'
+            : 'space reveal · 1-4 grade · j/k scroll · s suspend · u undo · n note · e edit · / search'}
           {previewable.length > 0 ? ' · i image' : ''} · q quit
         </Text>
       )}

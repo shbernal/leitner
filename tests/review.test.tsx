@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EditorRunner } from '../src/editor.js'
 import { buildKittyClearSequence, buildKittyImageSequence } from '../src/images.js'
 import { parseFile } from '../src/parser.js'
+import { emptyNotes, type NotesFile } from '../src/notes.js'
 import { emptyState, type ReviewState } from '../src/state.js'
 import { ReviewApp } from '../src/tui/review.js'
 import type { Deck, Flashcard, ReviewRecord } from '../src/types.js'
@@ -106,6 +107,10 @@ function openPicker(overrides: Overrides = {}) {
   return open(undefined, { deckFilter: undefined, decks: [algebraDeck], ...overrides })
 }
 
+function emptyNotesMap(): Map<string, NotesFile> {
+  return new Map([['/notes', emptyNotes()]])
+}
+
 const PNG = '/notes/attachments/diagram.png'
 
 /** Same deck, but the first card carries a previewable PNG. */
@@ -120,6 +125,143 @@ function openWithImage(tmux = false) {
     displayablePngs: new Set([PNG]),
   })
 }
+
+describe('notes in a session', () => {
+  type Persist = (rootDir: string, file: NotesFile) => Promise<void>
+
+  const noop: Persist = async () => {}
+
+  /** The sidecar as the session would have written it, without a filesystem. */
+  function collect(): { written: Map<string, NotesFile>; persist: Persist } {
+    const written = new Map<string, NotesFile>()
+    const persist: Persist = async (rootDir, file) => {
+      written.set(rootDir, file)
+    }
+    return { written, persist }
+  }
+
+  it('opens the composer on n and says the card has none yet', async () => {
+    const ui = await open(undefined, { persistNotes: noop })
+    await ui.press('n')
+    const frame = ui.frame()
+    expect(frame).toContain('no notes on this card yet')
+    expect(frame).toContain('note:')
+    expect(frame).toContain('esc cancels')
+  })
+
+  it('writes what was typed to the card own root, and marks the card', async () => {
+    const { written, persist } = collect()
+    const ui = await open(undefined, { persistNotes: persist })
+    await ui.press('n')
+    await ui.type('front gives it away')
+    await ui.press(KEY.enter)
+
+    expect(written.get('/notes')?.notes['algebra#a']?.[0]?.text).toBe('front gives it away')
+    // Denormalized, so the note survives the heading being renamed later.
+    expect(written.get('/notes')?.notes['algebra#a']?.[0]?.cardTitle).toBe('What is a group?')
+    const frame = ui.frame()
+    expect(frame).toContain('noted on algebra#a')
+    expect(frame).toContain('📝 1')
+  })
+
+  it('shows the notes a card already has when the composer opens', async () => {
+    const existing = new Map<string, NotesFile>([
+      [
+        '/notes',
+        {
+          version: 1,
+          notes: {
+            'algebra#a': [
+              {
+                text: 'merge with the ring card',
+                createdAt: '2026-09-01T00:00:00.000Z',
+                cardTitle: 'What is a group?',
+                sourcePath: 'algebra.md',
+              },
+            ],
+          },
+        },
+      ],
+    ])
+    const ui = await open(undefined, { notes: existing, persistNotes: noop })
+    expect(ui.frame()).toContain('📝 1')
+
+    await ui.press('n')
+    expect(ui.frame()).toContain('merge with the ring card')
+  })
+
+  it('cancels on esc, writing nothing', async () => {
+    const { written, persist } = collect()
+    const ui = await open(undefined, { persistNotes: persist })
+    await ui.press('n')
+    await ui.type('never mind')
+    await ui.press(KEY.escape)
+
+    expect(written.size).toBe(0)
+    expect(ui.frame()).toContain('note cancelled')
+  })
+
+  // `n` doubles as "show me the notes", so closing an empty one must not write.
+  it('closes without writing when enter comes on an empty line', async () => {
+    const { written, persist } = collect()
+    const ui = await open(undefined, { persistNotes: persist })
+    await ui.press('n')
+    await ui.press(KEY.enter)
+
+    expect(written.size).toBe(0)
+    expect(ui.frame()).toContain('closed notes')
+  })
+
+  it('keeps grading keys out of the composer', async () => {
+    const { written, persist } = collect()
+    const ui = await open(undefined, { persistNotes: persist })
+    await ui.press(KEY.space)
+    await ui.press('n')
+    await ui.type('3')
+    await ui.press(KEY.enter)
+
+    expect(state.records['a']).toBeUndefined()
+    expect(written.get('/notes')?.notes['algebra#a']?.[0]?.text).toBe('3')
+    expect(ui.frame()).toContain('card 1/2')
+  })
+
+  /* A practice pass schedules nothing, but a note is not scheduling — and a
+     read-through is when a remark most often occurs. */
+  it('writes a note during a practice pass, where the grade keys do nothing', async () => {
+    const { written, persist } = collect()
+    const ui = await openPicker({ persistNotes: persist })
+    await ui.press('p')
+    await ui.press('n')
+    await ui.type('too easy')
+    await ui.press(KEY.enter)
+
+    expect(written.get('/notes')?.notes['algebra#a']?.[0]?.text).toBe('too easy')
+  })
+
+  // Dropping it silently is the one outcome an unwritable tree must not have.
+  it('keeps a note for the session when the sidecar cannot be written', async () => {
+    const ui = await open(undefined, {
+      persistNotes: async () => {
+        throw new Error('EROFS: read-only file system')
+      },
+    })
+    await ui.press('n')
+    await ui.type('stays here')
+    await ui.press(KEY.enter)
+
+    expect(ui.frame()).toContain('note kept for this session only')
+    expect(ui.frame()).toContain('EROFS')
+
+    await ui.press('n')
+    expect(ui.frame()).toContain('stays here')
+  })
+
+  it('starts from an empty store when the session is given none', async () => {
+    const ui = await open(undefined, { notes: emptyNotesMap(), persistNotes: noop })
+    await ui.press('n')
+    expect(ui.frame()).toContain('no notes on this card yet')
+  })
+})
 
 describe('ReviewApp', () => {
   it('opens on the first card with the answer hidden', async () => {
