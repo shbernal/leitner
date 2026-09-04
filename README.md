@@ -39,6 +39,8 @@ pnpm build
 leitner init   [dir...]  # record where your flashcards live
 leitner list   [dir...]  # decks and card counts
 leitner cards  [dir...]  # every card's reference and title
+leitner note   <ref>     # add a note to a card, or list the notes it has
+leitner notes  [dir...]  # every note, orphaned ones included
 leitner stats  [dir...]  # totals, due/new/suspended, parse warnings
 leitner review [dir...]  # interactive review session
 leitner export [dir...]  # review state as a portable JSON bundle
@@ -66,6 +68,42 @@ Two headings in a file that slugify alike take an ordinal (`~1`, `~2`), and the
 file is reported as a warning, because deleting one of them shifts the other's
 number. [`docs/format.md`](docs/format.md) has the derivation and what edits a
 reference survives.
+
+### Notes on a card
+
+A thought about a card that is not about your memory of it — this back
+conflates two rules, this front gives the answer away, these two cards are the
+same card — is a note. Notes are keyed by reference and stored in
+`.leitner-notes.json` at the root of the source directory, so they travel with
+the deck rather than with your schedule.
+
+```bash
+leitner cards | grep estar            # find the card
+leitner note spanish-verbs#ser-vs-estar 'the back conflates two rules'
+leitner note spanish-verbs#ser-vs-estar   # list its notes, numbered
+leitner note spanish-verbs#ser-vs-estar --rm 1
+leitner notes                         # every note in the collection
+leitner notes --orphans               # only the ones whose card is gone
+```
+
+Text is optional: `leitner note <ref>` with nothing after it lists that card's
+notes with the numbers `--rm` takes. The reference can be shortened as long as
+it stays unambiguous — `spanish-verbs#ser` is enough unless two cards answer to
+it, and then the candidates are printed for you to pick from. A note is added to
+a card that exists; nothing is filed against a reference that matches none.
+
+Notes accumulate per card rather than replacing one another, and `stats` counts
+them alongside the card totals.
+
+**Orphans.** Rename a heading or move a deck file and the reference breaks, so
+its notes point at nothing. They are shown, marked as orphaned and carrying the
+card's title and path as they were when the note was written — never deleted for
+you. Removing one is `leitner note <ref> --rm <n>` on the old reference, which
+still works precisely so an orphan can be cleared. A card filter (`--deck`,
+`--type`, `--untyped`) hides orphans, since there is no card left for it to
+match them on.
+
+[`docs/notes.md`](docs/notes.md) has the file format and the reasoning.
 
 ### More than one directory
 
@@ -133,6 +171,8 @@ chmod +x ~/.local/bin/leitner
 --images                enable inline image previews (kitty graphics protocol)
 --out <path>            export: write here instead of stdout
 --prune                 export: drop records whose cards no longer exist
+--rm <n>                note: remove the card's note number n (counting from 1)
+--orphans               notes: only notes whose card no longer exists
 --merge <strategy>      import: newer (default) | theirs | ours
 --dry-run               import: report what would change without writing
 -h, --help              show this help

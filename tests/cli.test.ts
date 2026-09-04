@@ -10,9 +10,12 @@ import {
   runImport,
   runCards,
   runList,
+  runNote,
+  runNotes,
   runStats,
   type CliOptions,
 } from '../src/cli.js'
+import { emptyNotes, loadNotes, notesPath } from '../src/notes.js'
 import { parseDirectory } from '../src/parser.js'
 import { loadState, saveState } from '../src/state.js'
 import type { ReviewRecord } from '../src/types.js'
@@ -53,6 +56,7 @@ function options(command: CliOptions['command'], extra: Partial<CliOptions> = {}
     newOnly: false,
     images: false,
     prune: false,
+    orphansOnly: false,
     merge: 'newer',
     hiddenDecks: [],
     dryRun: false,
@@ -112,6 +116,24 @@ describe('parseCli', () => {
     const parsed = await parseCli(['cards'])
     expect(parsed?.command).toBe('cards')
     expect(parsed?.sourceDirs).toEqual(['/decks'])
+  })
+
+  it('takes the positional after `note` as a card reference, not a directory', async () => {
+    await writeConfig({ sourceDirs: ['/decks'] })
+    const parsed = await parseCli(['note', 'spanish#hola', 'the', 'back', 'is', 'thin'])
+    expect(parsed?.cardRef).toBe('spanish#hola')
+    expect(parsed?.noteText).toBe('the back is thin')
+    expect(parsed?.sourceDirs).toEqual(['/decks'])
+  })
+
+  it('requires a card reference for note', async () => {
+    await expect(parseCli(['note'])).rejects.toThrow(/card reference/)
+  })
+
+  it('parses --rm and rejects a non-number or a position below one', async () => {
+    expect((await parseCli(['note', 'a#b', '--rm', '2']))?.removeAt).toBe(2)
+    await expect(parseCli(['note', 'a#b', '--rm', 'first'])).rejects.toThrow('invalid --rm')
+    await expect(parseCli(['note', 'a#b', '--rm', '0'])).rejects.toThrow('invalid --rm')
   })
 
   it('rejects an unknown command', async () => {
@@ -267,6 +289,161 @@ describe('cards command', () => {
   })
 })
 
+describe('note command', () => {
+  /* A note is written into the root the card came from, so these run against a
+     temp deck: `tests/fixtures` is checked in and would gain a sidecar. */
+  async function writeDeck(...headings: string[]): Promise<string> {
+    const root = path.join(dir, 'notes')
+    await fs.mkdir(root, { recursive: true })
+    const body = headings.map((heading) => `## ${heading}\n\n***\n\nfact\n`).join('\n')
+    await fs.writeFile(path.join(root, 'spanish.md'), `# Spanish\n\n${body}`)
+    return root
+  }
+
+  function noteOptions(root: string, extra: Partial<CliOptions> = {}): CliOptions {
+    return options('note', { sourceDirs: [root], ...extra })
+  }
+
+  it('adds a note to a card named by reference, and reads it back', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'two rules' }))
+    expect(stdout).toContain('noted on spanish#ser-vs-estar')
+
+    const file = await loadNotes(root)
+    expect(file.notes['spanish#ser-vs-estar']?.[0]?.text).toBe('two rules')
+    // Denormalized so the note stays readable once its reference stops resolving.
+    expect(file.notes['spanish#ser-vs-estar']?.[0]?.cardTitle).toBe('Ser vs estar')
+    expect(file.notes['spanish#ser-vs-estar']?.[0]?.sourcePath).toBe('spanish.md')
+
+    stdout = ''
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar' }))
+    expect(stdout).toContain('1  ')
+    expect(stdout).toContain('two rules')
+  })
+
+  it('resolves a prefix, so the whole heading need not be typed', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser', noteText: 'short form' }))
+
+    const file = await loadNotes(root)
+    // Filed under the card's full reference, not under what was typed.
+    expect(Object.keys(file.notes)).toEqual(['spanish#ser-vs-estar'])
+  })
+
+  it('removes a note by its number', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'first' }))
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'second' }))
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', removeAt: 1 }))
+
+    const file = await loadNotes(root)
+    expect(file.notes['spanish#ser-vs-estar']?.map((note) => note.text)).toEqual(['second'])
+  })
+
+  it('refuses a number no note has, saying how many there are', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'only' }))
+    await expect(
+      runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', removeAt: 4 })),
+    ).rejects.toThrow('no note 4')
+  })
+
+  it('names the candidates for an ambiguous reference, and writes nothing', async () => {
+    const root = await writeDeck('Ser vs estar', 'Ser conjugation')
+    await expect(
+      runNote(noteOptions(root, { cardRef: 'spanish#ser', noteText: 'which one?' })),
+    ).rejects.toThrow('spanish#ser-vs-estar')
+    expect(await loadNotes(root)).toEqual(emptyNotes())
+  })
+
+  it('refuses a reference that matches nothing, pointing at the card listing', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await expect(
+      runNote(noteOptions(root, { cardRef: 'spanish#haber', noteText: 'nowhere' })),
+    ).rejects.toThrow('leitner cards')
+    expect(await loadNotes(root)).toEqual(emptyNotes())
+  })
+
+  /* An orphaned reference resolves to no card, but its notes are still worth
+     reading and removing — which is the only way an orphan ever goes away. */
+  it('still lists and removes the notes of a reference whose card is gone', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'stranded' }))
+    await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Estar\n\n***\n\nfact\n')
+
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar' }))
+    expect(stdout).toContain('stranded')
+
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', removeAt: 1 }))
+    expect(await loadNotes(root)).toEqual(emptyNotes())
+  })
+
+  it('refuses to file a new note against a reference that matches no card', async () => {
+    const root = await writeDeck('Ser vs estar')
+    await expect(
+      runNote(noteOptions(root, { cardRef: 'spanish#gone', noteText: 'orphan by birth' })),
+    ).rejects.toThrow(/matches/)
+  })
+})
+
+describe('notes command', () => {
+  async function withOrphan(): Promise<string> {
+    const root = path.join(dir, 'notes')
+    await fs.mkdir(root, { recursive: true })
+    await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Hola\n\n***\n\nhi\n')
+    await fs.writeFile(
+      notesPath(root),
+      JSON.stringify({
+        version: 1,
+        notes: {
+          'spanish#hola': [
+            {
+              text: 'too easy',
+              createdAt: '2026-09-01T00:00:00.000Z',
+              cardTitle: 'Hola',
+              sourcePath: 'spanish.md',
+            },
+          ],
+          'spanish#adios': [
+            {
+              text: 'left behind',
+              createdAt: '2026-09-02T00:00:00.000Z',
+              cardTitle: 'Adios',
+              sourcePath: 'spanish.md',
+            },
+          ],
+        },
+      }),
+    )
+    return root
+  }
+
+  it('lists every note, marking the ones whose card is gone', async () => {
+    const root = await withOrphan()
+    await runNotes(options('notes', { sourceDirs: [root] }))
+    expect(stdout).toContain('too easy')
+    expect(stdout).toContain('left behind')
+    expect(stdout).toContain('orphaned; was "Adios" in spanish.md')
+    expect(stdout).toContain('2 notes, 1 orphaned')
+  })
+
+  it('narrows to the orphans on request', async () => {
+    const root = await withOrphan()
+    await runNotes(options('notes', { sourceDirs: [root], orphansOnly: true }))
+    expect(stdout).toContain('left behind')
+    expect(stdout).not.toContain('too easy')
+    expect(stdout).toContain('1 notes, 1 orphaned')
+  })
+
+  // An orphan belongs to no card, so a filter over cards has nothing to match it on.
+  it('drops orphans when a card filter is in play', async () => {
+    const root = await withOrphan()
+    await runNotes(options('notes', { sourceDirs: [root], deck: 'spanish' }))
+    expect(stdout).toContain('too easy')
+    expect(stdout).toContain('1 notes, 0 orphaned')
+  })
+})
+
 describe('stats command', () => {
   it('reports totals, due/new/suspended counts and warning count', async () => {
     await runStats(options('stats'))
@@ -276,6 +453,23 @@ describe('stats command', () => {
     expect(stdout).toContain('due cards:       0')
     expect(stdout).toContain('suspended cards: 0')
     expect(stdout).toContain('parse warnings:  3')
+    expect(stdout).toContain('notes:           0')
+    expect(stdout).toContain('orphaned notes:  0')
+  })
+
+  // The count nobody can get to by reading the file: a note pointing at no card.
+  it('counts notes and the orphans among them', async () => {
+    const root = path.join(dir, 'notes')
+    await fs.mkdir(root, { recursive: true })
+    await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Hola\n\n***\n\nhi\n')
+    await runNote(
+      options('note', { sourceDirs: [root], cardRef: 'spanish#hola', noteText: 'too easy' }),
+    )
+    await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Adios\n\n***\n\nbye\n')
+
+    await runStats(options('stats', { sourceDirs: [root] }))
+    expect(stdout).toContain('notes:           1')
+    expect(stdout).toContain('orphaned notes:  1')
   })
 
   it('lists every source directory', async () => {

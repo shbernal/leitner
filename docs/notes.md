@@ -73,9 +73,29 @@ so inserting a card above another moves the sha1 and leaves the reference alone.
 What breaks a reference is a heading rename or the deck file being moved or
 renamed — the same edits that break the card id, minus the positional ones.
 
+## Writing and reading them
+
+```bash
+leitner note <ref> [text]     # add a note, or list that card's notes
+leitner note <ref> --rm <n>   # remove note n, counting from 1
+leitner notes [dir...]        # every note; --orphans narrows to the broken ones
+```
+
+A reference may be shortened as long as it stays unambiguous, and an ambiguous
+one prints its candidates rather than guessing. A note is only ever filed
+against a card that exists, and it goes into the sidecar of the root that card
+was found under — which is named back to you when the collection has more than
+one.
+
+`stats` counts notes and, separately, the orphans among them.
+
 ## Orphans are surfaced, never pruned
 
-A note whose reference no longer resolves stays in the file.
+A note whose reference no longer resolves stays in the file. Nothing deletes it,
+now or later: no command prunes notes, and none ever will without being asked.
+`leitner notes` marks it as orphaned and `--orphans` narrows to just those,
+which is also why an orphaned reference is still addressable by `note <ref>` —
+listing and `--rm` are how one goes away, as an explicit act.
 
 Review state can afford to be relaxed here: an orphaned record is ignored when
 the queue is built, and `export --prune` drops it on request, because the worst

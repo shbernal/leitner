@@ -11,7 +11,18 @@ import {
 } from './config.js'
 import { detectImageSupport, isDisplayablePng, tmuxPassthroughEnabled } from './images.js'
 import { isInteractive, runInit } from './onboard.js'
+import {
+  addNote,
+  loadAllNotes,
+  loadNotes,
+  type Note,
+  notesFor,
+  notesPath,
+  removeNote,
+  saveNotes,
+} from './notes.js'
 import { parseDirectories } from './parser.js'
+import { resolveRef } from './refs.js'
 import { summarizeDecks } from './queue.js'
 import { defaultStatePath, loadState, saveState } from './state.js'
 import {
@@ -31,6 +42,8 @@ Commands:
   review [dir...]    Interactive terminal review session
   list [dir...]      Print decks and card counts
   cards [dir...]     Print every card's reference and title
+  note <ref> [text]  Add a note to a card, or list the notes it has
+  notes [dir...]     Print every note, orphaned ones included
   stats [dir...]     Print card/due/suspended counts and parse warnings
   export [dir...]    Write review state as a portable JSON bundle
   import <file>      Merge a review-state bundle into the local state
@@ -54,6 +67,8 @@ Options:
   --images                Enable inline image previews (kitty graphics protocol)
   --out <path>            export: write here instead of stdout
   --prune                 export: drop records whose cards no longer exist
+  --rm <n>                note: remove the card's note number n
+  --orphans               notes: only notes whose card no longer exists
   --merge <strategy>      import: newer (default) | theirs | ours
   --dry-run               import: report what would change without writing
   -h, --help              Show this help
@@ -64,7 +79,16 @@ Review keys:
   When a deck is finished, enter goes back to the deck picker.
 `
 
-export type Command = 'init' | 'review' | 'list' | 'cards' | 'stats' | 'export' | 'import'
+export type Command =
+  | 'init'
+  | 'review'
+  | 'list'
+  | 'cards'
+  | 'note'
+  | 'notes'
+  | 'stats'
+  | 'export'
+  | 'import'
 
 export type CliOptions = {
   command: Command
@@ -88,6 +112,13 @@ export type CliOptions = {
   dryRun: boolean
   /** `import` only: the bundle to read. */
   bundlePath?: string
+  /** `note` only: the card reference to act on, and the note text when given. */
+  cardRef?: string
+  noteText?: string
+  /** `note --rm`: which of that card's notes to drop, counting from 1. */
+  removeAt?: number
+  /** `notes --orphans`: only the notes whose reference resolves to no card. */
+  orphansOnly: boolean
   /** `init` only: keep the configured directories and add to them. */
   add: boolean
   /** The config's `editor`, if it names one; `review` only. */
@@ -113,6 +144,8 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
       out: { type: 'string' },
       prune: { type: 'boolean', default: false },
       merge: { type: 'string' },
+      rm: { type: 'string' },
+      orphans: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
@@ -123,7 +156,8 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     process.stdout.write(USAGE)
     return null
   }
-  if (!['init', 'review', 'list', 'cards', 'stats', 'export', 'import'].includes(command)) {
+  const commands = ['init', 'review', 'list', 'cards', 'note', 'notes', 'stats', 'export', 'import']
+  if (!commands.includes(command)) {
     throw new Error(`unknown command: ${command}\n\n${USAGE}`)
   }
   // `type` is a user extension the format deliberately leaves undefined, so there is
@@ -141,11 +175,19 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   if (command === 'import' && positionals[1] === undefined) {
     throw new Error('import needs a bundle path: leitner import <file>')
   }
+  if (command === 'note' && positionals[1] === undefined) {
+    throw new Error('note needs a card reference: leitner note <ref> [text]')
+  }
+  const removeAt = values.rm === undefined ? undefined : Number.parseInt(values.rm, 10)
+  if (removeAt !== undefined && (Number.isNaN(removeAt) || removeAt < 1)) {
+    throw new Error(`invalid --rm: ${values.rm} (a note number, counting from 1)`)
+  }
 
   const file = await readConfigFile()
   const config = withDefaults(file)
-  // `import` takes a bundle path where the other commands take source directories.
-  const argumentDirs = command === 'import' ? [] : positionals.slice(1)
+  // `import` takes a bundle path and `note` a card reference, where the other
+  // commands take source directories.
+  const argumentDirs = command === 'import' || command === 'note' ? [] : positionals.slice(1)
   return {
     command: command as Command,
     sourceDirs: argumentDirs.length > 0 ? normalizeSourceDirs(argumentDirs) : config.sourceDirs,
@@ -165,6 +207,12 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     dryRun: values['dry-run'],
     add: values.add,
     bundlePath: positionals[1] === undefined ? undefined : expandHome(positionals[1]),
+    cardRef: command === 'note' ? positionals[1] : undefined,
+    // Unquoted note text arrives as several positionals; a sentence is the usual case.
+    noteText:
+      command === 'note' && positionals.length > 2 ? positionals.slice(2).join(' ') : undefined,
+    removeAt,
+    orphansOnly: values.orphans,
     editor: config.editor ?? undefined,
     hiddenDecks: config.hiddenDecks,
   }
@@ -260,6 +308,156 @@ export async function runCards(options: CliOptions): Promise<void> {
   process.stdout.write(`\n${cards.length} cards\n`)
 }
 
+/** A card and its notes live in the same root; the pair is the lookup key. */
+function noteKey(rootDir: string, ref: string): string {
+  return `${rootDir}\u0000${ref}`
+}
+
+function candidateList(cards: Flashcard[]): string {
+  return cards.map((card) => `  ${card.ref}  ${card.title}`).join('\n')
+}
+
+/**
+ * Add a note to a card, list what it already has, or drop one by number.
+ *
+ * The card is named by reference, so this is where a reference stops being
+ * something to read and becomes something to hand back. A reference that no
+ * longer resolves is still addressable here — that is what makes removing an
+ * orphaned note an explicit act rather than a cleanup nobody asked for.
+ */
+export async function runNote(options: CliOptions): Promise<void> {
+  const query = (options.cardRef ?? '').trim()
+  const parsed = await parseDirectories(options.sourceDirs)
+  printWarnings(parsed)
+
+  const resolved = resolveRef(parsed.cards, query)
+  if (resolved.kind === 'ambiguous') {
+    throw new Error(
+      `${query} matches ${resolved.matches.length} cards:\n${candidateList(resolved.matches)}\n` +
+        'Name one of them exactly.',
+    )
+  }
+
+  let rootDir: string
+  let ref: string
+  let card: Flashcard | undefined
+  if (resolved.kind === 'found') {
+    card = resolved.card
+    rootDir = card.rootDir
+    ref = card.ref
+  } else {
+    // No card answers to it, but a sidecar still might: the card was renamed or
+    // moved out from under notes that are still worth reading and removing.
+    ref = query.toLowerCase()
+    const files = await loadAllNotes(options.sourceDirs)
+    const holding = [...files].filter(([, file]) => notesFor(file, ref).length > 0)
+    const first = holding[0]
+    if (first === undefined) {
+      throw new Error(`no card matches ${query}; run "leitner cards" to see every reference`)
+    }
+    if (holding.length > 1) {
+      throw new Error(
+        `${query} is an orphaned note in ${holding.length} source directories:\n` +
+          `${holding.map(([dir]) => `  ${dir}`).join('\n')}`,
+      )
+    }
+    rootDir = first[0]
+  }
+
+  const file = await loadNotes(rootDir)
+  const existing = notesFor(file, ref)
+
+  if (options.removeAt !== undefined) {
+    const doomed = existing[options.removeAt - 1]
+    if (doomed === undefined) {
+      throw new Error(
+        `${ref} has ${existing.length} notes, so there is no note ${options.removeAt}`,
+      )
+    }
+    await saveNotes(rootDir, removeNote(file, ref, options.removeAt - 1))
+    process.stdout.write(`removed note ${options.removeAt} from ${ref}: ${doomed.text}\n`)
+    return
+  }
+
+  if (options.noteText !== undefined) {
+    if (card === undefined) {
+      throw new Error(`${query} matches no card, so there is nothing to note it against`)
+    }
+    const note: Note = {
+      text: options.noteText,
+      createdAt: new Date().toISOString(),
+      // As the card is now: what keeps the note readable once the reference breaks.
+      cardTitle: card.title,
+      sourcePath: path.relative(card.rootDir, card.sourcePath),
+    }
+    await saveNotes(rootDir, addNote(file, ref, note))
+    process.stdout.write(`noted on ${ref}: ${note.text}\n`)
+    // Which file it went into is not obvious once a collection has two roots.
+    if (options.sourceDirs.length > 1) process.stdout.write(`wrote ${notesPath(rootDir)}\n`)
+    return
+  }
+
+  if (existing.length === 0) {
+    process.stdout.write(`${ref} has no notes\n`)
+    return
+  }
+  process.stdout.write(`${ref}  ${card?.title ?? '(no card; orphaned notes)'}\n`)
+  existing.forEach((note, index) => {
+    process.stdout.write(`  ${index + 1}  ${note.createdAt.slice(0, 10)}  ${note.text}\n`)
+  })
+}
+
+/**
+ * Every note in the collection, orphans included and marked as such. A note
+ * nobody can find is the failure this feature has to make visible, so an orphan
+ * is listed rather than pruned, carrying the card as it was when it was written.
+ */
+export async function runNotes(options: CliOptions): Promise<void> {
+  const parsed = await parseDirectories(options.sourceDirs)
+  printWarnings(parsed)
+
+  const live = new Map<string, Flashcard>()
+  for (const card of parsed.cards) live.set(noteKey(card.rootDir, card.ref), card)
+  const selected = new Set(
+    filterCards(parsed.cards, options).map((card) => noteKey(card.rootDir, card.ref)),
+  )
+  // An orphan matches no card, so a filter over cards cannot include it.
+  const narrowed = options.deck !== undefined || options.type !== undefined || options.untyped
+
+  const files = await loadAllNotes(options.sourceDirs)
+  const rows: { rootDir: string; ref: string; note: Note; position: number; orphan: boolean }[] = []
+  for (const [rootDir, file] of files) {
+    for (const ref of Object.keys(file.notes).sort()) {
+      const key = noteKey(rootDir, ref)
+      const orphan = !live.has(key)
+      if (orphan ? narrowed : !selected.has(key)) continue
+      if (options.orphansOnly && !orphan) continue
+      notesFor(file, ref).forEach((note, index) => {
+        rows.push({ rootDir, ref, note, position: index + 1, orphan })
+      })
+    }
+  }
+
+  const roots = options.sourceDirs.length > 1 ? options.sourceDirs.map(contractHome) : []
+  const rootWidth = Math.max(4, ...roots.map((root) => root.length))
+  const rootColumn = (root: string) => (roots.length === 0 ? '' : `${root.padEnd(rootWidth)}  `)
+  const refWidth = Math.max(4, ...rows.map((row) => row.ref.length))
+
+  process.stdout.write(`${rootColumn('root')}${'card'.padEnd(refWidth)}   n  note\n`)
+  for (const row of rows) {
+    const provenance = row.orphan
+      ? ` — orphaned; was "${row.note.cardTitle}" in ${row.note.sourcePath}`
+      : ''
+    process.stdout.write(
+      `${rootColumn(contractHome(row.rootDir))}${row.ref.padEnd(refWidth)}  ${String(
+        row.position,
+      ).padStart(2)}  ${row.note.text}${provenance}\n`,
+    )
+  }
+  const orphaned = rows.filter((row) => row.orphan).length
+  process.stdout.write(`\n${rows.length} notes, ${orphaned} orphaned\n`)
+}
+
 export async function runStats(options: CliOptions): Promise<void> {
   const parsed = await parseDirectories(options.sourceDirs)
   printWarnings(parsed)
@@ -267,6 +465,18 @@ export async function runStats(options: CliOptions): Promise<void> {
   const cards = filterCards(parsed.cards, options)
   const state = await loadState(options.statePath)
   const summaries = summarizeDecks(cards, state)
+
+  /* Unfiltered, like the warning count below: a note whose card the filter hid is
+     still in the file, and the orphan count is the number this block exists for. */
+  const live = new Set(parsed.cards.map((card) => noteKey(card.rootDir, card.ref)))
+  let notes = 0
+  let orphanedNotes = 0
+  for (const [rootDir, file] of await loadAllNotes(options.sourceDirs)) {
+    for (const [ref, list] of Object.entries(file.notes)) {
+      notes += list.length
+      if (!live.has(noteKey(rootDir, ref))) orphanedNotes += list.length
+    }
+  }
 
   let due = 0
   let fresh = 0
@@ -289,6 +499,8 @@ export async function runStats(options: CliOptions): Promise<void> {
   process.stdout.write(`due cards:       ${due}\n`)
   process.stdout.write(`new cards:       ${fresh}\n`)
   process.stdout.write(`suspended cards: ${suspended}\n`)
+  process.stdout.write(`notes:           ${notes}\n`)
+  process.stdout.write(`orphaned notes:  ${orphanedNotes}\n`)
   process.stdout.write(`parse warnings:  ${parsed.warnings.length}\n`)
 }
 
@@ -461,6 +673,10 @@ export async function main(argv: string[]): Promise<void> {
       return runList(options)
     case 'cards':
       return runCards(options)
+    case 'note':
+      return runNote(options)
+    case 'notes':
+      return runNotes(options)
     case 'stats':
       return runStats(options)
     case 'export':
