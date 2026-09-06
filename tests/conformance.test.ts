@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url)
 const FIXTURES = path.dirname(require.resolve('flashcard-md-spec/manifest.json'))
 
 /** The spec version this suite conforms to, pinned rather than tracked. */
-const SPEC_VERSION = '1.0'
+const SPEC_VERSION = '1.1'
 
 type ManifestCase = {
   id: string

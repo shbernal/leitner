@@ -40,8 +40,8 @@ importers:
         specifier: ^19.2.18
         version: 19.2.18
       flashcard-md-spec:
-        specifier: ~1.0.0
-        version: 1.0.0
+        specifier: ~1.1.0
+        version: 1.1.0
       lefthook:
         specifier: ^2.1.12
         version: 2.1.12
@@ -933,8 +933,8 @@ packages:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
     engines: {node: '>=8'}
 
-  flashcard-md-spec@1.0.0:
-    resolution: {integrity: sha512-XKAyvORKsmJfv1PTSAPQpUsqiRpzZDUGUWhh7I5lCcpkfs/ppfkSpFEeXnDd9e3YefeHds+Zfx3Z9ND8u42+gQ==}
+  flashcard-md-spec@1.1.0:
+    resolution: {integrity: sha512-77vse9967kWb5EcnUg8IExpBZ+HktyTMlmk0fpOLFNT6qudIXNc4CpokH1Ed3kpFlaAJ86JU+mXcjX1Ll4+Hzw==}
     engines: {node: '>=24'}
 
   fsevents@2.3.3:
@@ -1202,10 +1202,6 @@ packages:
   picomatch@2.3.2:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
-
-  picomatch@4.0.5:
-    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
-    engines: {node: '>=12'}
 
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
@@ -1985,15 +1981,15 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
-  fdir@6.5.0(picomatch@4.0.5):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   fill-range@7.1.1:
     dependencies:
       to-regex-range: 5.0.1
 
-  flashcard-md-spec@1.0.0: {}
+  flashcard-md-spec@1.1.0: {}
 
   fsevents@2.3.3:
     optional: true
@@ -2347,8 +2343,6 @@ snapshots:
 
   picomatch@2.3.2: {}
 
-  picomatch@4.0.5: {}
-
   picomatch@4.0.7: {}
 
   postcss@8.5.26:
@@ -2472,8 +2466,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinypool@2.1.0: {}
 
@@ -2539,8 +2533,8 @@ snapshots:
   vite@7.3.6(@types/node@26.4.1):
     dependencies:
       esbuild: 0.28.2
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
       postcss: 8.5.26
       rollup: 4.62.4
       tinyglobby: 0.2.17

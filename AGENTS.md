@@ -102,7 +102,7 @@ Flashcard Markdown surface: pure, string in and parsed deck out, free of I/O.
 resolved image paths, mtimes.
 
 - The corpus is the `flashcard-md-spec` npm package, run as this project's own
-  suite in `tests/conformance.test.ts`. `SPEC_VERSION` there pins `1.0` rather
+  suite in `tests/conformance.test.ts`. `SPEC_VERSION` there pins `1.1` rather
   than tracking whatever is installed, so a corpus bump fails loudly.
 - **A parse-rule change is a spec change.** Make it in the
   [`flashcard-md-spec`](https://github.com/shbernal/flashcard-md-spec)

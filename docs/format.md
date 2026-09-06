@@ -1,6 +1,6 @@
 # Markdown flashcard format
 
-`leitner` reads **Flashcard Markdown 1.0**. The format is specified in its
+`leitner` reads **Flashcard Markdown 1.1**. The format is specified in its
 own repository, and this document does not restate it:
 
 - the specification: [`SPEC.md`](https://github.com/shbernal/flashcard-md-spec/blob/master/SPEC.md)
@@ -43,6 +43,13 @@ warning: [stray-h1] /notes/flashcards/rome.md: the second `#` heading …
 Severity is a function of class, so every one of them is a warning here. The
 codes are the closed list in §8; the messages are ours and no test depends on
 them.
+
+A diagnostic carries the code and the card it belongs to, and nothing else the
+format governs. §8 also names an optional `line` — the 1-based source line the
+departure begins on — so that implementations that report one agree on what to
+call it. This one does not report it: the message names the file, and the
+conformance corpus neither asserts a line nor has anywhere to put one. Omitting
+it conforms.
 
 ## Discovery
 
