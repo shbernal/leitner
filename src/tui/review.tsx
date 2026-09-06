@@ -527,6 +527,11 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         setMessage('nothing to undo')
         return
       }
+      /* `state` is the caller's object and every handler here writes through it —
+         see the mutation note above `summarizeDecks`. oxlint's react/immutability
+         only proves it on this branch; 's' and the grade keys do the same thing
+         below and go unreported. */
+      // oxlint-disable-next-line react/immutability
       if (entry.previousRecord) state.records[entry.cardId] = entry.previousRecord
       else delete state.records[entry.cardId]
       setUndoStack((stack) => stack.slice(0, -1))
