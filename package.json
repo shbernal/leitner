@@ -42,20 +42,20 @@
     "gray-matter": "^4.0.3",
     "ink": "^7.1.1",
     "mdast-util-to-string": "^4.0.0",
-    "react": "^19.2.8",
+    "react": "^19.3.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
     "flashcard-md-spec": "~1.1.0",
-    "lefthook": "^2.1.12",
-    "oxfmt": "^0.66.0",
-    "oxlint": "^1.81.0",
+    "lefthook": "^2.1.14",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=24"
