@@ -113,10 +113,12 @@ whatever `--state` names. A missing file is an empty state, not an error.
 { "version": 1, "records": { "<card id>": { "dueAt": "…", "ease": 2.5 } } }
 ```
 
-Every grade, suspend and undo writes the whole file immediately, to a `.tmp`
-sibling that is then renamed over it. The rename is atomic, so an interrupted
-write cannot leave a half-written state, and killing the terminal mid-session
-loses nothing that was already graded.
+Every grade, suspend and undo writes the whole file immediately, to a uniquely
+named temp sibling that is synced and then renamed over it. The rename is
+atomic, so an interrupted write cannot leave a half-written state, and killing
+the terminal mid-session loses nothing that was already graded. Writes to the
+file are queued rather than overlapped, so grades in quick succession land in
+order and the last one is what stays on disk.
 
 Drive-by notes are **not** in this file. They have a different lifecycle — a
 grade is machine-generated and survivable if lost, a hand-written note is not
