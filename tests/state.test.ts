@@ -71,6 +71,12 @@ describe('state store', () => {
     expect(await fs.readdir(dir)).toEqual(['review-state.json'])
   })
 
+  it('rejects a state file whose records are an array', async () => {
+    const statePath = path.join(dir, 'review-state.json')
+    await fs.writeFile(statePath, '{"version":1,"records":[]}')
+    await expect(loadState(statePath)).rejects.toThrow('invalid review state')
+  })
+
   it('rejects corrupt state files instead of silently clobbering them', async () => {
     const statePath = path.join(dir, 'review-state.json')
     await fs.writeFile(statePath, '"not an object"')

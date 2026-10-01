@@ -32,16 +32,25 @@ export function toBundle(state: ReviewState, exportedAt: Date = new Date()): Exp
   }
 }
 
+/* Every field, not just the ones the scheduler does arithmetic on: a missing
+   `suspended` reads as false and would quietly unsuspend the card, and a `dueAt`
+   that is not a date compares false against every clock, so the card would never
+   come due again and no queue would show it. */
 function isRecord(value: unknown): value is ReviewRecord {
   if (typeof value !== 'object' || value === null) return false
   const r = value as Partial<ReviewRecord>
   return (
     typeof r.cardId === 'string' &&
+    typeof r.sourcePath === 'string' &&
+    typeof r.sourceMtimeMs === 'number' &&
+    typeof r.suspended === 'boolean' &&
     typeof r.dueAt === 'string' &&
+    !Number.isNaN(Date.parse(r.dueAt)) &&
     typeof r.intervalDays === 'number' &&
     typeof r.ease === 'number' &&
     typeof r.reps === 'number' &&
-    typeof r.lapses === 'number'
+    typeof r.lapses === 'number' &&
+    (r.lastReviewedAt === undefined || typeof r.lastReviewedAt === 'string')
   )
 }
 
@@ -57,7 +66,13 @@ export function parseBundle(raw: string): ReviewRecord[] {
     throw new Error('expected a JSON object')
   }
 
-  const candidate = parsed as { records?: unknown }
+  const candidate = parsed as { version?: unknown; records?: unknown }
+  // No version is fine: a bare state file has one, but nothing requires it.
+  if (typeof candidate.version === 'number' && candidate.version > BUNDLE_VERSION) {
+    throw new Error(
+      `bundle is format version ${candidate.version}; this leitner reads up to version ${BUNDLE_VERSION}`,
+    )
+  }
   // Accept both the export bundle (records as an array) and a raw state file
   // (records keyed by card id), so either can be handed to `import`.
   const values = Array.isArray(candidate.records)
@@ -72,7 +87,8 @@ export function parseBundle(raw: string): ReviewRecord[] {
 
   const records: ReviewRecord[] = []
   for (const [i, value] of values.entries()) {
-    if (!isRecord(value)) throw new Error(`record ${i} is missing required fields`)
+    if (!isRecord(value))
+      throw new Error(`record ${i} is missing required fields or has an unusable value`)
     records.push(value)
   }
   return records

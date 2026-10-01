@@ -27,7 +27,13 @@ export async function loadState(statePath: string): Promise<ReviewState> {
     throw error
   }
   const parsed = JSON.parse(raw) as Partial<ReviewState>
-  if (typeof parsed !== 'object' || parsed === null || typeof parsed.records !== 'object') {
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof parsed.records !== 'object' ||
+    // An array is an object too, and every later write would put string keys on it.
+    Array.isArray(parsed.records)
+  ) {
     throw new Error(`invalid review state file: ${statePath}`)
   }
   return { version: 1, records: parsed.records ?? {} }
