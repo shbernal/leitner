@@ -182,6 +182,13 @@ describe('parseCli', () => {
     expect((await parseCli(['review', '--deck', 'other']))?.deck).toBe('other')
   })
 
+  // Otherwise every orphan vanishes from `notes`, `--orphans` included, on a config key alone.
+  it('keeps defaultDeckFilter away from notes, where only an explicit --deck narrows', async () => {
+    await writeConfig({ sourceDirs: ['/decks'], defaultDeckFilter: 'vocabulary-words' })
+    expect((await parseCli(['notes', '--orphans']))?.deck).toBeUndefined()
+    expect((await parseCli(['notes', '--deck', 'other']))?.deck).toBe('other')
+  })
+
   /* There is no flag for it: the deck picker is the only thing it narrows, so the
      way to study a hidden deck is `.` in the picker or `--deck` naming it. */
   it('carries hiddenDecks through from the config, defaulting to none', async () => {

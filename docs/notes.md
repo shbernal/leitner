@@ -117,6 +117,12 @@ now or later: no command prunes notes, and none ever will without being asked.
 which is also why an orphaned reference is still addressable by `note <ref>` —
 listing and `--rm` are how one goes away, as an explicit act.
 
+An explicit `--deck`, `--type` or `--untyped` hides orphans, because there is no
+card left to match them against. The config's `defaultDeckFilter` is not applied
+to `notes`: it is a scheduling convenience, and honoured here it would hide every
+orphan, `--orphans` included, on the strength of a config key the user set for
+something else.
+
 Review state can afford to be relaxed here: an orphaned record is ignored when
 the queue is built, and `export --prune` drops it on request, because the worst
 case is a schedule you can rebuild. A note is not in that category. Deleting one
