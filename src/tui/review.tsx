@@ -167,6 +167,9 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
   const [message, setMessage] = useState(() => emptyQueueMessage(queue.length, 'review'))
   const [graded, setGraded] = useState(0)
   const [practised, setPractised] = useState(0)
+  /* Apart from `graded`: a suspend takes a card out of the schedule rather than
+     advancing it, so counting it as a review would overstate what happened. */
+  const [suspended, setSuspended] = useState(0)
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([])
   const [done, setDone] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -517,7 +520,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
     }
 
     if (input === 'q' || (key.ctrl && input === 'c')) {
-      exit({ graded, practised, touched: touched.current })
+      exit({ graded, practised, suspended, touched: touched.current })
       return
     }
     if (input === '/') {
@@ -552,7 +555,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         setScroll(0)
       }
       setDone(false)
-      setGraded((n) => Math.max(0, n - 1))
+      if (entry.action === 'suspend') setSuspended((n) => Math.max(0, n - 1))
+      else setGraded((n) => Math.max(0, n - 1))
       persist(`undid ${entry.action}`)
       setMessage(`undid ${entry.action}`)
       return
@@ -635,7 +639,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
       recordUndo(item.card.id, 'suspend')
       state.records[item.card.id] = { ...record, suspended: true }
       persist('suspended')
-      setGraded((n) => n + 1)
+      setSuspended((n) => n + 1)
       advance(`suspended "${item.card.title}"`)
       return
     }
@@ -672,7 +676,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         }}
         onSelect={selectDeck}
         onPractice={(sourcePaths) => selectDeck(sourcePaths, 'practice')}
-        onQuit={() => exit({ graded, practised, touched: touched.current })}
+        onQuit={() => exit({ graded, practised, suspended, touched: touched.current })}
       />
     )
   }
@@ -703,7 +707,8 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
         <Text color="green">
           {mode === 'practice'
             ? `Practice pass complete — ${practised} card${practised === 1 ? '' : 's'}.`
-            : `Session complete — ${graded} card${graded === 1 ? '' : 's'} reviewed.`}
+            : `Session complete — ${graded} card${graded === 1 ? '' : 's'} reviewed` +
+              (suspended > 0 ? `, ${suspended} suspended.` : '.')}
         </Text>
         <Text dimColor>{hints.join(' · ')}</Text>
         <Text dimColor>{message}</Text>
@@ -789,7 +794,7 @@ export function ReviewApp(options: ReviewSessionOptions): React.ReactElement {
 }
 
 /** What ReviewApp hands back through exit(), for the summary printed after teardown. */
-type ReviewResult = { graded: number; practised: number; touched: boolean }
+type ReviewResult = { graded: number; practised: number; suspended: number; touched: boolean }
 
 function isReviewResult(value: unknown): value is ReviewResult {
   return (
@@ -797,6 +802,7 @@ function isReviewResult(value: unknown): value is ReviewResult {
     value !== null &&
     typeof Reflect.get(value, 'graded') === 'number' &&
     typeof Reflect.get(value, 'practised') === 'number' &&
+    typeof Reflect.get(value, 'suspended') === 'number' &&
     typeof Reflect.get(value, 'touched') === 'boolean'
   )
 }
@@ -819,12 +825,14 @@ export async function startReview(
   const result = await app.waitUntilExit()
   /* An unrecognised result means the session ended some way this code does not
      know about, so flush rather than assume there was nothing to flush. */
-  const outcome = isReviewResult(result) ? result : { graded: 0, practised: 0, touched: true }
+  const outcome = isReviewResult(result)
+    ? result
+    : { graded: 0, practised: 0, suspended: 0, touched: true }
   if (outcome.touched) await saveState(options.statePath, options.state)
 
   // The alternate screen is gone by now along with the session-complete frame,
   // so restate the outcome on the primary screen.
-  const { graded, practised } = outcome
+  const { graded, practised, suspended } = outcome
   if (graded > 0) {
     process.stdout.write(`Reviewed ${graded} card${graded === 1 ? '' : 's'}.\n`)
   }
@@ -832,5 +840,8 @@ export async function startReview(
   // no card's schedule, so calling it a review would overstate what happened.
   if (practised > 0) {
     process.stdout.write(`Practised ${practised} card${practised === 1 ? '' : 's'}.\n`)
+  }
+  if (suspended > 0) {
+    process.stdout.write(`Suspended ${suspended} card${suspended === 1 ? '' : 's'}.\n`)
   }
 }

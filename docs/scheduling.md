@@ -46,12 +46,15 @@ been seen should not start life with a lapse against it.
 
 A session is due cards first, oldest due date first, then new cards in deck
 order — deck order being sorted path order, then position in the file. `--due`
-and `--new` keep one of the two halves; `--limit` truncates whatever is left,
+and `--new` keep one of the two halves, and passing both is refused rather than
+read as one of them; `--limit` truncates whatever is left,
 and `review` applies `dailyLimit` when no `--limit` is given.
 
 Suspended cards are never due and are never queued. `s` suspends the current
 card, and `u` takes it back while the session lasts; after that, un-suspending
-is an edit to the state file.
+is an edit to the state file. A suspend is counted apart from the cards
+reviewed, in the session's summary and in the line printed after it: the card
+left the schedule rather than moving along it.
 
 `review` opens the deck picker whenever the collection holds any cards at all,
 even when none of them are due. A refusal there would be the one place a

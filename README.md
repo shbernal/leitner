@@ -166,14 +166,14 @@ chmod +x ~/.local/bin/leitner
 --deck <slug-or-path>   only decks matching slug or source path (skips the picker)
 --type <type>           frontmatter type, matched verbatim (the format defines no set)
 --untyped               only cards whose file declares no type
---due                   only due cards
---new                   only new cards
+--due                   only due cards (not with --new)
+--new                   only new cards (not with --due)
 --limit <n>             cap queue size (review defaults to dailyLimit, 50)
 --state <path>          state file (default ~/.local/share/leitner/review-state.json)
 --images                enable inline image previews (kitty graphics protocol)
 --out <path>            export: write here instead of stdout
 --prune                 export: drop records whose cards no longer exist
---rm <n>                note: remove the card's note number n (counting from 1)
+--rm <n>                note: remove the card's note number n (counting from 1; takes no text)
 --orphans               notes: only notes whose card no longer exists
 --merge <strategy>      import: newer (default) | theirs | ours
 --dry-run               import: report what would change without writing

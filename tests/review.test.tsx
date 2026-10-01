@@ -398,6 +398,21 @@ describe('ReviewApp', () => {
     expect(state.records['a']?.suspended).toBe(true)
   })
 
+  // A suspend takes the card out of the schedule; it was not reviewed.
+  it('counts a suspend apart from a review, and undoes it from the same count', async () => {
+    const ui = await open()
+    await ui.press('s')
+    await ui.press(KEY.space)
+    await ui.press('3')
+    expect(ui.frame()).toContain('Session complete — 1 card reviewed, 1 suspended.')
+
+    await ui.press('u')
+    await ui.press('u')
+    await ui.press('s')
+    await ui.press('s')
+    expect(ui.frame()).toContain('Session complete — 0 cards reviewed, 2 suspended.')
+  })
+
   it('narrows the queue to search matches', async () => {
     const ui = await open()
     await ui.press('/')
@@ -1124,6 +1139,12 @@ describe('startReview', () => {
     const written = JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState
     expect(Object.keys(written.records)).toEqual(['a'])
     expect(printed).toContain('Reviewed 1 card.')
+  })
+
+  it('reports suspended cards on their own line, not as reviewed', async () => {
+    await session(['s'])
+    expect(printed).toContain('Suspended 1 card.')
+    expect(printed).not.toContain('Reviewed')
   })
 
   // The claim the practice mode rests on: a read-through never opens the file.

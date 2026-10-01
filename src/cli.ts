@@ -165,6 +165,9 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   if (values.type !== undefined && values.untyped) {
     throw new Error('--type and --untyped select disjoint sets; pass one or the other')
   }
+  if (values.due && values.new) {
+    throw new Error('--due and --new select disjoint sets; pass one or the other')
+  }
   if (values.merge !== undefined && !isMergeStrategy(values.merge)) {
     throw new Error(`invalid --merge: ${values.merge} (expected newer, theirs, or ours)`)
   }
@@ -181,6 +184,10 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
   const removeAt = values.rm === undefined ? undefined : Number.parseInt(values.rm, 10)
   if (removeAt !== undefined && (Number.isNaN(removeAt) || removeAt < 1)) {
     throw new Error(`invalid --rm: ${values.rm} (a note number, counting from 1)`)
+  }
+  // Otherwise the removal runs and the text, the half typed by hand, is dropped.
+  if (removeAt !== undefined && command === 'note' && positionals.length > 2) {
+    throw new Error('note --rm removes a note; add text in a separate command')
   }
 
   const file = await readConfigFile()
