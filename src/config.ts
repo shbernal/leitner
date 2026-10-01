@@ -91,7 +91,16 @@ export async function readConfigFile(
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
   }
-  return JSON.parse(raw) as ParsedConfig
+  /* Every command reads the config before it dispatches, so a stray comma here
+     stops all of them; the message has to say which file and what to do about it. */
+  try {
+    return JSON.parse(raw) as ParsedConfig
+  } catch (error) {
+    throw new Error(
+      `invalid config file: ${configPath}: ${(error as Error).message}. ` +
+        'Fix it by hand, or delete it and run `leitner init` to start over.',
+    )
+  }
 }
 
 export function withDefaults(parsed: ParsedConfig | null): AppConfig {

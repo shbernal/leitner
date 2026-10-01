@@ -57,6 +57,12 @@ describe('the notes file', () => {
     await expect(loadNotes(dir)).rejects.toThrow(notesPath(dir))
   })
 
+  // With several roots, a parser message alone would not say which sidecar broke.
+  it('names the file when it is not JSON at all', async () => {
+    await fs.writeFile(notesPath(dir), '{"version":1,"notes":{')
+    await expect(loadNotes(dir)).rejects.toThrow(notesPath(dir))
+  })
+
   /* No fallback under XDG_DATA_HOME: a second location that diverges from this one
      is a second place to lose notes. The path the user asked for is what is named. */
   it('reports a write it cannot make, with the path, rather than relocating it', async () => {

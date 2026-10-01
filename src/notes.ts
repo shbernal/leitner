@@ -70,7 +70,13 @@ export async function loadNotes(rootDir: string): Promise<NotesFile> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return emptyNotes()
     throw error
   }
-  const parsed = JSON.parse(raw) as Partial<NotesFile>
+  // With several roots, the bare parser message would not say which sidecar it was.
+  let parsed: Partial<NotesFile>
+  try {
+    parsed = JSON.parse(raw) as Partial<NotesFile>
+  } catch (error) {
+    throw new Error(`invalid notes file: ${file}: ${(error as Error).message}`)
+  }
   if (typeof parsed !== 'object' || parsed === null || typeof parsed.notes !== 'object') {
     throw new Error(`invalid notes file: ${file}`)
   }
