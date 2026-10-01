@@ -33,7 +33,7 @@ export type NotesFile = {
 }
 
 /** Skipped by discovery twice over: not `*.md`, and not visible with `dot: false`. */
-export const NOTES_FILENAME = '.leitner-notes.json'
+const NOTES_FILENAME = '.leitner-notes.json'
 
 export function notesPath(rootDir: string): string {
   return path.join(rootDir, NOTES_FILENAME)

@@ -9,7 +9,7 @@ export type RecordMove = {
 }
 
 /** One card, as it was before the edit and as it is after it. */
-export type CardPair = {
+type CardPair = {
   before: Flashcard
   after: Flashcard
 }
@@ -28,7 +28,7 @@ export type CardPair = {
  *    each side — that is a rename. Two or more unmatched cards on a side is
  *    ambiguous, and guessing there would attach history to the wrong card.
  */
-export function pairCards(before: Flashcard[], after: Flashcard[]): CardPair[] {
+function pairCards(before: Flashcard[], after: Flashcard[]): CardPair[] {
   const byTitle = new Map<string, Flashcard[]>()
   for (const card of after) {
     const bucket = byTitle.get(card.title)
