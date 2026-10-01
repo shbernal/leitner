@@ -62,6 +62,27 @@ describe('parseBundle', () => {
       /record 0 is missing required fields/,
     )
   })
+
+  // A missing `suspended` would read as false: importing would unsuspend the card.
+  it('refuses a record missing a field the scheduler does not do arithmetic on', () => {
+    for (const field of ['suspended', 'sourcePath', 'sourceMtimeMs']) {
+      const partial: Record<string, unknown> = { ...record('a') }
+      delete partial[field]
+      expect(() => parseBundle(JSON.stringify({ records: [partial] }))).toThrow('record 0')
+    }
+  })
+
+  // `NaN <= now` is false, so the card would never come due and no queue would show it.
+  it('refuses a dueAt that is not a date', () => {
+    const raw = JSON.stringify({ records: [record('a'), record('b', { dueAt: 'soon' })] })
+    expect(() => parseBundle(raw)).toThrow('record 1')
+  })
+
+  it('refuses a bundle from a newer format, and takes one with no version', () => {
+    const newer = { ...toBundle(stateWith(record('a'))), version: 99 }
+    expect(() => parseBundle(JSON.stringify(newer))).toThrow('99')
+    expect(parseBundle(JSON.stringify({ records: [record('a')] }))).toHaveLength(1)
+  })
 })
 
 describe('mergeRecords', () => {

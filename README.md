@@ -338,6 +338,12 @@ strategy keeps whichever copy of a card was reviewed most recently; `theirs`
 always takes the incoming record, `ours` only fills in unseen cards. Pair with
 `--dry-run` to see the effect first.
 
+`import` refuses the whole file, naming the first offending record, when any
+record is missing a field or has a `dueAt` that is not a date. Filling a
+missing `suspended` with a default would unsuspend the card, and a card with an
+unreadable due date would never come up again. It also refuses a bundle written
+in a newer format version than it reads.
+
 ## Development
 
 ```bash
