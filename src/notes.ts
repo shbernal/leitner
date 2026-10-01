@@ -12,6 +12,7 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { writeFileAtomic } from './atomic.js'
 
 export type Note = {
   text: string
@@ -92,10 +93,8 @@ export async function loadAllNotes(rootDirs: string[]): Promise<Map<string, Note
  */
 export async function saveNotes(rootDir: string, file: NotesFile): Promise<void> {
   const target = notesPath(rootDir)
-  const tmpPath = `${target}.tmp`
   try {
-    await fs.writeFile(tmpPath, JSON.stringify(file, null, 2) + '\n', 'utf8')
-    await fs.rename(tmpPath, target)
+    await writeFileAtomic(target, JSON.stringify(file, null, 2) + '\n')
   } catch (error) {
     // The failure is usually on the temp file, so name the one the user asked for.
     throw new Error(`cannot write ${target}: ${(error as Error).message}`)

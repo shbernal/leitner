@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { writeFileAtomic } from './atomic.js'
 import type { ReviewRecord } from './types.js'
 
 export type ReviewState = {
@@ -33,8 +34,5 @@ export async function loadState(statePath: string): Promise<ReviewState> {
 }
 
 export async function saveState(statePath: string, state: ReviewState): Promise<void> {
-  await fs.mkdir(path.dirname(statePath), { recursive: true })
-  const tmpPath = `${statePath}.tmp`
-  await fs.writeFile(tmpPath, JSON.stringify(state, null, 2) + '\n', 'utf8')
-  await fs.rename(tmpPath, statePath)
+  await writeFileAtomic(statePath, JSON.stringify(state, null, 2) + '\n', { createDir: true })
 }
