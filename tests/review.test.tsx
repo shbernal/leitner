@@ -8,9 +8,9 @@ import { buildKittyClearSequence, buildKittyImageSequence } from '../src/images.
 import { parseFile } from '../src/parser.js'
 import { emptyNotes, type NotesFile } from '../src/notes.js'
 import { emptyState, type ReviewState } from '../src/state.js'
-import { ReviewApp } from '../src/tui/review.js'
+import { ReviewApp, startReview } from '../src/tui/review.js'
 import type { Deck, Flashcard, ReviewRecord } from '../src/types.js'
-import { KEY, renderTui, type TuiHarness } from './helpers/tui.js'
+import { KEY, renderTui, TestStdin, TestStdout, type TuiHarness } from './helpers/tui.js'
 
 function makeCard(id: string, title: string, body: string): Flashcard {
   return {
@@ -738,6 +738,20 @@ describe('ReviewApp editing', () => {
     expect(frame).toContain('card 1/2')
     expect(frame).toContain('What is a group?')
   })
+  /* The other half of a failed edit, and the worse one: the editor ran, so the file
+     on disk and the session have already parted, and the message has to say so. */
+  it('says the edit happened but could not be followed when the reread fails', async () => {
+    const { ui } = await openDeck(async (file) => {
+      await fs.rm(file)
+    })
+    await ui.press('e')
+    await settled(() => {
+      expect(ui.frame()).toContain('could not reread')
+    })
+    const frame = ui.frame()
+    expect(frame).toContain('card 1/2')
+    expect(frame).toContain('What is a group?')
+  })
 })
 
 describe('ReviewApp deck picker', () => {
@@ -1052,3 +1066,88 @@ describe('ReviewApp practice pass', () => {
     })
   })
 })
+
+/* `ReviewApp` alone never reaches the flush after teardown, which is where a
+   session that changed nothing must decline to write — so these go through
+   `startReview`, against stub streams rather than the harness. */
+describe('startReview', () => {
+  let printed: string
+
+  beforeEach(() => {
+    printed = ''
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      printed += String(chunk)
+      return true
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /** Run a session to its end on `keys`, each given time to be read on its own. */
+  async function session(keys: string[]): Promise<void> {
+    const stdin = new TestStdin()
+    const stdout = new TestStdout(100, 40)
+    const done = startReview(
+      {
+        cards,
+        decks: [],
+        state,
+        statePath,
+        queueOptions: {},
+        deckFilter: 'algebra',
+        images: { enabled: false, tmux: false, reason: 'not a kitty terminal' },
+        displayablePngs: new Set(),
+      },
+      {
+        stdin: stdin as unknown as NodeJS.ReadStream,
+        stdout: stdout as unknown as NodeJS.WriteStream,
+        patchConsole: false,
+      },
+    )
+    for (const key of [...keys, 'q']) {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      stdin.write(key)
+    }
+    await done
+  }
+
+  it('leaves the state file alone when the session changed nothing', async () => {
+    await session([])
+    await expect(fs.access(statePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(printed).toBe('')
+  })
+
+  it('writes the state file and says how many were reviewed once a card is graded', async () => {
+    await session([KEY.space, '3'])
+    const written = JSON.parse(await fs.readFile(statePath, 'utf8')) as ReviewState
+    expect(Object.keys(written.records)).toEqual(['a'])
+    expect(printed).toContain('Reviewed 1 card.')
+  })
+
+  // The claim the practice mode rests on: a read-through never opens the file.
+  it('writes nothing after a practice pass, and calls it practice rather than review', async () => {
+    state.records['a'] = { ...newRecordFor('a'), dueAt: '2099-01-01T00:00:00.000Z' }
+    state.records['b'] = { ...newRecordFor('b'), dueAt: '2099-01-01T00:00:00.000Z' }
+    await session(['p', KEY.space, KEY.space, KEY.space, KEY.space])
+
+    await expect(fs.access(statePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(printed).toContain('Practised 2 cards.')
+    expect(printed).not.toContain('Reviewed')
+  })
+})
+
+function newRecordFor(cardId: string): ReviewRecord {
+  return {
+    cardId,
+    sourcePath: '/notes/algebra.md',
+    sourceMtimeMs: 0,
+    suspended: false,
+    dueAt: '2026-01-01T00:00:00.000Z',
+    intervalDays: 30,
+    ease: 2.5,
+    reps: 3,
+    lapses: 0,
+  }
+}

@@ -1,6 +1,15 @@
 import path from 'node:path'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text, render, useApp, useInput, useStdout, useWindowSize } from 'ink'
+import {
+  Box,
+  Text,
+  render,
+  useApp,
+  useInput,
+  useStdout,
+  useWindowSize,
+  type RenderOptions,
+} from 'ink'
 import { defaultConfigPath, writeHiddenDecks } from '../config.js'
 import { applyNoteMoves, applyRecordMoves, reconcileCardIds, reconcileCardRefs } from '../edit.js'
 import { resolveEditor, runEditor, type EditorRunner } from '../editor.js'
@@ -792,11 +801,20 @@ function isReviewResult(value: unknown): value is ReviewResult {
   )
 }
 
-export async function startReview(options: ReviewSessionOptions): Promise<void> {
+/**
+ * `terminal` defaults to the process's own streams; the tests hand in stubs, so the
+ * flush after teardown — the one write a practice pass must never make — is
+ * driven for real rather than through `ReviewApp` alone.
+ */
+export async function startReview(
+  options: ReviewSessionOptions,
+  terminal: Pick<RenderOptions, 'stdin' | 'stdout' | 'patchConsole'> = {},
+): Promise<void> {
   const app = render(<ReviewApp {...options} />, {
     // Review owns the whole screen, so keep it out of the scrollback like less does.
     exitOnCtrlC: false,
     alternateScreen: true,
+    ...terminal,
   })
   const result = await app.waitUntilExit()
   /* An unrecognised result means the session ended some way this code does not

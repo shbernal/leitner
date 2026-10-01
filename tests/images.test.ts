@@ -1,13 +1,14 @@
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildKittyClearSequence,
   buildKittyImageSequence,
   detectImageSupport,
   hasPngExtension,
   isDisplayablePng,
+  tmuxPassthroughEnabled,
   wrapForTmux,
 } from '../src/images.js'
 
@@ -107,5 +108,36 @@ describe('isDisplayablePng', () => {
     expect(await isDisplayablePng(path.join(dir, 'gone.png'))).toBe(false)
     expect(hasPngExtension('a.PNG')).toBe(true)
     expect(hasPngExtension('a.jpg')).toBe(false)
+  })
+})
+
+/* The answer decides whether the user is warned that previews will not render, so
+   each branch is pinned against a stand-in `tmux` put first on PATH. */
+describe('tmuxPassthroughEnabled', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  async function fakeTmux(script: string): Promise<void> {
+    await fs.writeFile(path.join(dir, 'tmux'), `#!/bin/sh\n${script}\n`, { mode: 0o755 })
+    vi.stubEnv('PATH', `${dir}${path.delimiter}${process.env['PATH'] ?? ''}`)
+    vi.stubEnv('TMUX', '/tmp/tmux-1000/default,1,0')
+  }
+
+  it('is null outside tmux, without asking it', async () => {
+    vi.stubEnv('TMUX', '')
+    expect(await tmuxPassthroughEnabled()).toBeNull()
+  })
+
+  it('reads the setting tmux reports', async () => {
+    await fakeTmux('echo on')
+    expect(await tmuxPassthroughEnabled()).toBe(true)
+    await fakeTmux('echo off')
+    expect(await tmuxPassthroughEnabled()).toBe(false)
+  })
+
+  it('is null when tmux cannot be asked', async () => {
+    await fakeTmux('exit 1')
+    expect(await tmuxPassthroughEnabled()).toBeNull()
   })
 })
