@@ -146,8 +146,18 @@ describe('parseCli', () => {
     await expect(parseCli(['study'])).rejects.toThrow('unknown command: study')
   })
 
-  it('rejects --type together with --untyped', async () => {
+  it('rejects flag pairs that select disjoint sets', async () => {
     await expect(parseCli(['list', '--type', 'film', '--untyped'])).rejects.toThrow(/disjoint/)
+    // `--new` would be the one dropped, and it is the one that shows something new.
+    await expect(parseCli(['review', '--due', '--new'])).rejects.toThrow(/disjoint/)
+  })
+
+  // Removing and adding in one command is not one request, and the text would be lost.
+  it('refuses note --rm with text, rather than dropping the text', async () => {
+    await expect(parseCli(['note', 'deck#a', '--rm', '1', 'a thought'])).rejects.toThrow(
+      'separate command',
+    )
+    expect((await parseCli(['note', 'deck#a', '--rm', '1']))?.removeAt).toBe(1)
   })
 
   it('rejects an unknown --merge strategy', async () => {
