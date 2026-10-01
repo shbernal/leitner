@@ -163,6 +163,13 @@ resize — which is exactly what the review viewport math depends on. Keep it.
   stripped, `output()` is everything including the raw kitty escapes.
 - `ReviewApp` takes `openEditor` so the edit flow is driven without spawning
   `$EDITOR`. Use it rather than mocking `child_process`.
+- `startReview` takes the terminal streams as an optional second argument, so
+  the flush after teardown — the write a practice pass must never make — is
+  driven through the real entry point with the harness's `TestStdin` and
+  `TestStdout`. Pass `patchConsole: false` alongside them, as the harness does.
+- `tests/cli.test.ts` mocks `src/tui/review.js`, so `runReview` runs for real up
+  to the moment it would open the screen. Everything `--images` decides happens
+  before that.
 
 ## Where documentation goes
 

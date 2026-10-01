@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events'
 import type React from 'react'
 import { render } from 'ink'
 
-class TestStdout extends EventEmitter {
+export class TestStdout extends EventEmitter {
   columns: number
   rows: number
   readonly frames: string[] = []
@@ -34,7 +34,7 @@ class TestStdout extends EventEmitter {
 }
 
 /** Ink 7 pulls input with `readable` + `read()`, so queue writes rather than pushing them. */
-class TestStdin extends EventEmitter {
+export class TestStdin extends EventEmitter {
   isTTY = true
   private readonly pending: string[] = []
 

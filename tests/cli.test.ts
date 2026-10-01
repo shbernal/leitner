@@ -12,13 +12,19 @@ import {
   runList,
   runNote,
   runNotes,
+  runReview,
   runStats,
   type CliOptions,
 } from '../src/cli.js'
-import { emptyNotes, loadNotes, notesPath } from '../src/notes.js'
+import { addNote, emptyNotes, loadNotes, notesPath, saveNotes } from '../src/notes.js'
 import { parseDirectory } from '../src/parser.js'
 import { loadState, saveState } from '../src/state.js'
+import { startReview } from '../src/tui/review.js'
 import type { ReviewRecord } from '../src/types.js'
+
+/* `runReview` imports the TUI lazily and hands it the screen; everything worth
+   asserting about it happens before that, so the session itself is stubbed out. */
+vi.mock('../src/tui/review.js', () => ({ startReview: vi.fn<typeof startReview>(async () => {}) }))
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
@@ -385,11 +391,39 @@ describe('note command', () => {
     expect(await loadNotes(root)).toEqual(emptyNotes())
   })
 
+  /* An orphan may be read and removed, never added to: the reference is held by a
+     sidecar, so it gets past the "no card matches" refusal and reaches this one. */
   it('refuses to file a new note against a reference that matches no card', async () => {
     const root = await writeDeck('Ser vs estar')
+    await runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'stranded' }))
+    await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Estar\n\n***\n\nfact\n')
+
     await expect(
-      runNote(noteOptions(root, { cardRef: 'spanish#gone', noteText: 'orphan by birth' })),
-    ).rejects.toThrow(/matches/)
+      runNote(noteOptions(root, { cardRef: 'spanish#ser-vs-estar', noteText: 'one more' })),
+    ).rejects.toThrow('nothing to note it against')
+    expect((await loadNotes(root)).notes['spanish#ser-vs-estar']).toHaveLength(1)
+  })
+
+  // A reference is only unique inside one root, so an orphan in two is ambiguous.
+  it('names every directory holding an orphaned reference rather than picking one', async () => {
+    const roots = [path.join(dir, 'home'), path.join(dir, 'work')]
+    for (const root of roots) {
+      await fs.mkdir(root, { recursive: true })
+      await fs.writeFile(path.join(root, 'spanish.md'), '# Spanish\n\n## Estar\n\n***\n\nfact\n')
+      await saveNotes(
+        root,
+        addNote(emptyNotes(), 'spanish#gone', {
+          text: 'left',
+          createdAt: '2026-09-01T00:00:00.000Z',
+          cardTitle: 'Gone',
+          sourcePath: 'spanish.md',
+        }),
+      )
+    }
+
+    const attempt = runNote(options('note', { sourceDirs: roots, cardRef: 'spanish#gone' }))
+    await expect(attempt).rejects.toThrow('2 source directories')
+    for (const root of roots) await expect(attempt).rejects.toThrow(root)
   })
 })
 
@@ -595,5 +629,60 @@ describe('filterCards', () => {
     const parsed = await parseDirectory(fixtures)
     const untyped = filterCards(parsed.cards, { untyped: true })
     expect(untyped.map((card) => card.deckId)).toEqual(['no-frontmatter', 'no-frontmatter'])
+  })
+})
+
+describe('review command', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.mocked(startReview).mockClear()
+  })
+
+  /** A terminal that advertises nothing, or kitty, outside tmux unless asked. */
+  function terminal(kind: 'plain' | 'kitty'): void {
+    vi.stubEnv('TERM', kind === 'kitty' ? 'xterm-kitty' : 'xterm-256color')
+    vi.stubEnv('TERM_PROGRAM', '')
+    vi.stubEnv('KITTY_WINDOW_ID', '')
+    vi.stubEnv('GHOSTTY_RESOURCES_DIR', '')
+    vi.stubEnv('GHOSTTY_BIN_DIR', '')
+    vi.stubEnv('TMUX', '')
+  }
+
+  it('says why --images cannot preview in a terminal without graphics', async () => {
+    terminal('plain')
+    await runReview(options('review', { images: true }))
+    expect(stderr).toContain('note: --images requested but')
+    expect(stderr).toContain('xterm-256color')
+    expect(vi.mocked(startReview)).toHaveBeenCalledOnce()
+  })
+
+  /* A second emitter of a §8 code, outside the deck parser: the image is resolved
+     on disk, but previews were asked for and it is not a PNG they can show. */
+  it('names an attachment that is not a displayable PNG, and hands the session none', async () => {
+    terminal('kitty')
+    await runReview(options('review', { images: true }))
+    expect(stderr).toContain('[unresolved-image]')
+    expect(stderr).toContain(path.join(fixtures, '.images', 'example.png'))
+    expect(vi.mocked(startReview).mock.calls[0]?.[0].displayablePngs.size).toBe(0)
+  })
+
+  it('warns when tmux will not pass the graphics escapes through', async () => {
+    terminal('kitty')
+    const bin = path.join(dir, 'bin')
+    await fs.mkdir(bin)
+    await fs.writeFile(path.join(bin, 'tmux'), '#!/bin/sh\necho off\n', { mode: 0o755 })
+    vi.stubEnv('PATH', `${bin}${path.delimiter}${process.env['PATH'] ?? ''}`)
+    vi.stubEnv('TMUX', '/tmp/tmux-1000/default,1,0')
+
+    await runReview(options('review', { images: true }))
+    expect(stderr).toContain('tmux allow-passthrough is off')
+  })
+
+  it('says nothing about images when they were not asked for', async () => {
+    terminal('plain')
+    await runReview(options('review'))
+    expect(stderr).not.toContain('--images')
+    expect(stderr).not.toContain('[unresolved-image]')
+    expect(vi.mocked(startReview).mock.calls[0]?.[0].images.enabled).toBe(false)
   })
 })
