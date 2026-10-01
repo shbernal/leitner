@@ -36,6 +36,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # `--prod` because the published tarball is `dist` and nothing else, so an
+      # advisory against a dev-only package should not block a pull request.
+      - name: Audit dependencies
+        run: pnpm audit --prod
+
       - name: Lint
         run: pnpm run lint
 
@@ -53,6 +58,11 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      # Here rather than among the local checks: an unused export is worth catching
+      # before a merge, not worth a sixth step before every commit.
+      - name: Find unused exports and dependencies
+        run: pnpm run knip
 
       # Runs after the build on purpose: `files` ships `dist`, `--ignore-scripts`
       # skips the `prepublishOnly` that would otherwise produce it, and packing an

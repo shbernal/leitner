@@ -22,12 +22,14 @@ const processor = unified().use(remarkParse)
 /** §5.3. The separator is this exact spelling and no other thematic break. */
 const SEPARATOR = '***'
 
+/** @public — reachable through `ParsedDeck`, so a consumer may need to name it. */
 export type SpecImage = {
   alt: string
   /** The link destination as written, unresolved. */
   src: string
 }
 
+/** @public — reachable through `ParsedDeck`, so a consumer may need to name it. */
 export type SpecCard = {
   /** The `##` heading's text, without the marker. §5.2 makes it the card's identity. */
   headingText: string

@@ -53,14 +53,22 @@ pnpm typecheck    # tsc --noEmit over src *and* tests
 pnpm lint         # oxlint
 pnpm format:check # oxfmt --check
 pnpm build        # tsc -p tsconfig.build.json, src only, into a cleared dist/
+pnpm knip         # unused exports, files and dependencies; CI only
+pnpm test:coverage # vitest with v8 coverage, into coverage/; on request
 ```
 
 There is no single `check` script and no pre-commit hook running them; run all
 five yourself before a commit. The only hook installed is `commit-msg`, from the
 shared `lefthook-rules` remote — it rejects agent-attribution trailers and
 nothing else. `.github/workflows/ci.yml` runs the same five on push and pull
-request, plus `npm pack --dry-run` after the build; it is the backstop, not a
+request, plus `pnpm audit --prod` after install, and `knip` and
+`npm pack --dry-run` after the build; it is the backstop, not a
 substitute for running them locally.
+
+`knip.json` names `src/index.ts` as the only entry. An export reachable through
+another exported type but never imported by name, like `SpecCard` through
+`ParsedDeck`, carries a `@public` tag rather than an ignore entry, so the
+reason sits on the symbol.
 
 **`pnpm format` writes.** It is `oxfmt src tests`, not a check — the inverted
 naming relative to the sibling repos is a real trap. `format:check` is the

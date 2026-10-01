@@ -79,7 +79,7 @@ Review keys:
   When a deck is finished, enter goes back to the deck picker.
 `
 
-export type Command =
+type Command =
   | 'init'
   | 'review'
   | 'list'
