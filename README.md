@@ -101,7 +101,9 @@ card's title and path as they were when the note was written — never deleted f
 you. Removing one is `leitner note <ref> --rm <n>` on the old reference, which
 still works precisely so an orphan can be cleared. A card filter (`--deck`,
 `--type`, `--untyped`) hides orphans, since there is no card left for it to
-match them on.
+match them on. `defaultDeckFilter` does not reach `notes` at all: a note is
+addressed by reference, and a standing deck filter would hide every orphan
+without a flag in sight.
 
 [`docs/notes.md`](docs/notes.md) has the file format and the reasoning.
 

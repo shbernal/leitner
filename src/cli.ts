@@ -194,7 +194,11 @@ export async function parseCli(argv: string[]): Promise<CliOptions | null> {
     sourceDirOrigin:
       argumentDirs.length > 0 ? 'argument' : sourceDirsFrom(file).length > 0 ? 'config' : 'default',
     statePath: values.state ? expandHome(values.state) : defaultStatePath(),
-    deck: values.deck ?? config.defaultDeckFilter ?? undefined,
+    /* A standing deck filter is a scheduling convenience, and a note is addressed by
+       reference, not by deck. Applied to `notes` it read as a filter the user had
+       asked for, which hides every orphan, `--orphans` included, with no flag in sight. */
+    deck:
+      values.deck ?? (command === 'notes' ? undefined : (config.defaultDeckFilter ?? undefined)),
     type: values.type,
     untyped: values.untyped,
     dueOnly: values.due,
