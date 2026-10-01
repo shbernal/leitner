@@ -56,8 +56,11 @@ A list per card, oldest first, because drive-by notes accumulate: three passes
 over a deck leave three separate remarks, and collapsing them into one field
 would lose two of them.
 
-Every write goes to a `.tmp` sibling and is renamed over the target, so an
-interrupted write cannot leave the file half-written.
+Every write goes to a uniquely named temp sibling, synced, then renamed over
+the target, so an interrupted write cannot leave the file half-written and two
+writes in quick succession cannot clobber each other's temp file. Writes to the
+same file are queued, so the last one made is the one that lands, and a failed
+write removes its temp file rather than leaving it in the deck tree.
 
 ## Keyed by reference, not by card id
 

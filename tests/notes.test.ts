@@ -71,6 +71,17 @@ describe('the notes file', () => {
     await fs.chmod(readOnly, 0o700)
   })
 
+  // The temp file goes into the user's deck tree, so a stray one is not harmless.
+  it('keeps the last of overlapping writes and leaves only the sidecar in the tree', async () => {
+    await Promise.all([
+      saveNotes(dir, addNote(emptyNotes(), ref, note('first'))),
+      saveNotes(dir, addNote(emptyNotes(), ref, note('second'))),
+    ])
+
+    expect(notesFor(await loadNotes(dir), ref).map((n) => n.text)).toEqual(['second'])
+    expect(await fs.readdir(dir)).toEqual([path.basename(notesPath(dir))])
+  })
+
   it('keys a multi-root load by root, so a reference is looked up in its own file', async () => {
     const other = path.join(dir, 'work')
     await fs.mkdir(other)

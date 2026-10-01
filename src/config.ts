@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { writeFileAtomic } from './atomic.js'
 
 export type AppConfig = {
   sourceDirs: string[]
@@ -121,10 +122,7 @@ export function withDefaults(parsed: ParsedConfig | null): AppConfig {
  * `init` wants and what a keypress in the picker does not.
  */
 export async function writeConfig(configPath: string, config: ParsedConfig): Promise<void> {
-  await fs.mkdir(path.dirname(configPath), { recursive: true })
-  const tmpPath = `${configPath}.tmp`
-  await fs.writeFile(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
-  await fs.rename(tmpPath, configPath)
+  await writeFileAtomic(configPath, JSON.stringify(config, null, 2) + '\n', { createDir: true })
 }
 
 /**

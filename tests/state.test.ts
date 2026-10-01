@@ -43,6 +43,34 @@ describe('state store', () => {
     expect(loaded).toEqual(state)
   })
 
+  /* A review session persists on every keypress without awaiting, so writes do
+     overlap. A shared temp name let one rename find its temp file already gone. */
+  it('survives overlapping saves, keeping the last and leaving no temp file', async () => {
+    const statePath = path.join(dir, 'review-state.json')
+    const big = emptyState()
+    for (let i = 0; i < 20_000; i++) big.records['k' + i] = { ...record, cardId: 'k' + i }
+    const small = emptyState()
+    small.records['abc'] = record
+
+    await Promise.all([
+      saveState(statePath, big),
+      saveState(statePath, big),
+      saveState(statePath, small),
+    ])
+
+    expect(await loadState(statePath)).toEqual(small)
+    expect(await fs.readdir(dir)).toEqual(['review-state.json'])
+  })
+
+  it('leaves no temp file behind when the write fails', async () => {
+    // A directory where the file should be makes the rename fail after the temp is written.
+    const statePath = path.join(dir, 'review-state.json')
+    await fs.mkdir(statePath)
+
+    await expect(saveState(statePath, emptyState())).rejects.toThrow('EISDIR')
+    expect(await fs.readdir(dir)).toEqual(['review-state.json'])
+  })
+
   it('rejects corrupt state files instead of silently clobbering them', async () => {
     const statePath = path.join(dir, 'review-state.json')
     await fs.writeFile(statePath, '"not an object"')

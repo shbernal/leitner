@@ -52,7 +52,8 @@ beforeEach(async () => {
 afterEach(async () => {
   ui?.unmount()
   ui = undefined
-  await fs.rm(dir, { recursive: true, force: true })
+  // A persist can still be in flight when the test ends; retry past its temp file.
+  await fs.rm(dir, { recursive: true, force: true, maxRetries: 5 })
 })
 
 /**
