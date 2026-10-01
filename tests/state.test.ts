@@ -71,6 +71,12 @@ describe('state store', () => {
     expect(await fs.readdir(dir)).toEqual(['review-state.json'])
   })
 
+  it('names the file when it is not JSON at all', async () => {
+    const statePath = path.join(dir, 'review-state.json')
+    await fs.writeFile(statePath, '{"version":1,"records":{"a":')
+    await expect(loadState(statePath)).rejects.toThrow(statePath)
+  })
+
   it('rejects a state file whose records are an array', async () => {
     const statePath = path.join(dir, 'review-state.json')
     await fs.writeFile(statePath, '{"version":1,"records":[]}')

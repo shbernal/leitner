@@ -26,7 +26,12 @@ export async function loadState(statePath: string): Promise<ReviewState> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return emptyState()
     throw error
   }
-  const parsed = JSON.parse(raw) as Partial<ReviewState>
+  let parsed: Partial<ReviewState>
+  try {
+    parsed = JSON.parse(raw) as Partial<ReviewState>
+  } catch (error) {
+    throw new Error(`invalid review state file: ${statePath}: ${(error as Error).message}`)
+  }
   if (
     typeof parsed !== 'object' ||
     parsed === null ||

@@ -69,6 +69,14 @@ describe('readConfigFile and withDefaults', () => {
     expect(await readConfigFile()).toEqual({})
   })
 
+  // Every command reads the config first, so this one message is all a stuck user gets.
+  it('names the file when it is not JSON at all', async () => {
+    const configPath = path.join(dir, 'leitner', 'config.json')
+    await fs.mkdir(path.dirname(configPath), { recursive: true })
+    await fs.writeFile(configPath, '{ "sourceDirs": [ }')
+    await expect(readConfigFile()).rejects.toThrow(configPath)
+  })
+
   it('returns the documented defaults when there is no file', async () => {
     expect(withDefaults(await readConfigFile())).toEqual({
       sourceDirs: [path.join(os.homedir(), 'notes', 'flashcards')],
