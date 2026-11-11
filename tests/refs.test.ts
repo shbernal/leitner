@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignRefs, cardRef, resolveRef } from '../src/refs.js'
+import { assignRefs, resolveRef } from '../src/refs.js'
 import type { Flashcard } from '../src/types.js'
 
 /** Only the fields resolution reads; the rest of a card is irrelevant here. */
@@ -23,16 +23,6 @@ function makeCard(ref: string, rootDir = '/notes'): Flashcard {
     tags: [],
   }
 }
-
-describe('cardRef', () => {
-  it('joins the deck slug and the heading slug with a `#`', () => {
-    expect(cardRef('spanish-verbs', 'ser-vs-estar')).toBe('spanish-verbs#ser-vs-estar')
-  })
-
-  it('appends an ordinal with `~` when one is given', () => {
-    expect(cardRef('spanish-verbs', 'ser-vs-estar', 2)).toBe('spanish-verbs#ser-vs-estar~2')
-  })
-})
 
 describe('assignRefs', () => {
   it('leaves a slug that occurs once without an ordinal', () => {

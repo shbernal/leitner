@@ -121,7 +121,6 @@ describe('consumer obligations the corpus states but cannot assert', () => {
     it(`${testCase.id} still loads`, async () => {
       const input = await fs.readFile(path.join(FIXTURES, testCase.id, 'input.md'), 'utf8')
 
-      expect(() => parseDeck(input)).not.toThrow()
       expect(parseDeck(input).cards.length).toBeGreaterThan(0)
     })
   }

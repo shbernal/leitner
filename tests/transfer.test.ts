@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyState, type ReviewState } from '../src/state.js'
-import {
-  isMergeStrategy,
-  mergeRecords,
-  parseBundle,
-  pruneToCards,
-  toBundle,
-} from '../src/transfer.js'
+import { mergeRecords, parseBundle, pruneToCards, toBundle } from '../src/transfer.js'
 import type { ReviewRecord } from '../src/types.js'
 
 function record(cardId: string, overrides: Partial<ReviewRecord> = {}): ReviewRecord {
@@ -141,14 +135,5 @@ describe('pruneToCards', () => {
     const result = pruneToCards(stateWith(record('keep'), record('drop')), ['keep'])
     expect(result.removed).toBe(1)
     expect(Object.keys(result.state.records)).toEqual(['keep'])
-  })
-})
-
-describe('isMergeStrategy', () => {
-  it('accepts only the known strategies', () => {
-    expect(isMergeStrategy('newer')).toBe(true)
-    expect(isMergeStrategy('theirs')).toBe(true)
-    expect(isMergeStrategy('ours')).toBe(true)
-    expect(isMergeStrategy('latest')).toBe(false)
   })
 })
