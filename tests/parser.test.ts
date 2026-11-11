@@ -264,9 +264,6 @@ describe('card identity', () => {
     expect(cardId('vocabulary/words.md', 'first-card', 1)).toBe(
       'e574a01521fd411a8a84127546b1734dc4a5acb7',
     )
-    expect(cardId('vocabulary/words.md', 'first-card', 1)).not.toBe(
-      cardId('vocabulary/words.md', 'first-card', 0),
-    )
   })
 
   it('gives duplicate headings distinct ids, and identical headings in two files too', () => {
