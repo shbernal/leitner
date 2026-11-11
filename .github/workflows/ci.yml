@@ -30,9 +30,6 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      # `prepare` runs `lefthook install`, which fetches the shared commit-msg
-      # rules. Pointless on a runner that makes no commits, but harmless, and
-      # skipping scripts here would also skip esbuild's, which vitest needs.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -69,3 +66,18 @@ jobs:
       # empty `dist` would report a passing check on a broken tarball.
       - name: Check the package contents
         run: npm pack --dry-run --ignore-scripts
+
+  commit-check:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages against .github/cchk.toml
+        uses: commit-check/commit-check-action@v2
+        with:
+          message: true
+          branch: false
