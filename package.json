@@ -36,33 +36,31 @@
     "format": "oxfmt src tests",
     "format:check": "oxfmt --check src tests",
     "typecheck": "tsc --noEmit",
-    "knip": "knip",
-    "prepare": "lefthook install"
+    "knip": "knip"
   },
   "dependencies": {
     "fast-glob": "^3.3.3",
     "gray-matter": "^4.0.3",
-    "ink": "^7.1.1",
+    "ink": "^8.0.0",
     "mdast-util-to-string": "^4.0.0",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
-    "@vitest/coverage-v8": "^5.0.3",
+    "@vitest/coverage-v8": "^5.1.0",
     "flashcard-md-spec": "~1.1.0",
-    "knip": "^6.39.0",
-    "lefthook": "^2.1.14",
-    "oxfmt": "^0.70.0",
-    "oxlint": "^1.85.0",
+    "knip": "^6.45.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@11.21.0"
+  "packageManager": "pnpm@12.18.0"
 }

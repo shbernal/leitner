@@ -360,10 +360,8 @@ pnpm build         # tsc -p tsconfig.build.json, into a cleared dist/
 uses `tsconfig.build.json`, which narrows the input to `src` so only library
 code is emitted to `dist`.
 
-`pnpm install` runs `prepare`, which installs the git hooks in `lefthook.yml`.
-The only one is a shared `commit-msg` rule fetched from
-[`lefthook-rules`](https://github.com/shbernal/lefthook-rules); the checks above
-are not wired to a hook, so run them yourself before a commit.
+There are no git hooks: run the checks above yourself before a commit. CI runs
+them on every pull request and rejects a commit message carrying AI attribution.
 
 Layout: `src/deck.ts` (Flashcard Markdown → parsed deck; the conformance
 surface, pure and free of I/O), `src/tags.ts` and `src/diagnostics.ts` (the
