@@ -283,6 +283,7 @@ describe('card identity', () => {
     const result = await parseFile(path.join(fixtures, 'vocabulary', 'words.md'), fixtures)
     const first = result.cards[0]
     expect(first).toBeDefined()
-    expect(first?.id).toBe(cardId('vocabulary/words.md', slugify(first?.title ?? ''), 0))
+    // sha1 of 'vocabulary/words.md:coax:0': source path, heading slug, heading index.
+    expect(first?.id).toBe('ab5aa687a21b931e0bd1bb87508cec88ace9d11c')
   })
 })
