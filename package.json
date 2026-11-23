@@ -51,16 +51,16 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "flashcard-md-spec": "~1.1.0",
-    "knip": "^6.45.0",
-    "oxfmt": "^0.78.0",
-    "oxlint": "^1.93.0",
+    "knip": "^6.47.0",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   },
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@12.18.0"
+  "packageManager": "pnpm@12.23.0"
 }
